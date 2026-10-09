@@ -97,7 +97,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           </div>
         ))}
         {/* The 18 squares: floating stones like the game board's, a little above their spot, each bobbing. */}
-        {island.squares.slice(1).map((sq, i) => (
+        {island.tiles === "stones" && island.squares.slice(1).map((sq, i) => (
           <img
             key={i}
             src="/art/islands/stone.webp"
@@ -140,7 +140,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           <span className="pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#1E3A8A]/80 px-1.5 text-[10px] font-black text-[#FBD000]">Lv{nest}</span>
         </button>
         {/* The start: a bigger stone in front of the 龍巢, as high as the others. */}
-        <img
+        {island.tiles === "stones" ? <img
           src="/art/islands/stone.webp"
           alt=""
           draggable={false}
@@ -152,7 +152,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             transform: "translate(-49.4%, -26.1%)",
             animation: "stone-bob 3.8s ease-in-out infinite",
           }}
-        />
+        /> : null}
         {island.decor.map((d) => (
           <Decor key={d.kind} kind={d.kind} at={island.spots[d.spot]} w={d.w} island={island} />
         ))}

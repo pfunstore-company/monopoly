@@ -952,9 +952,34 @@ export function createBoardScene(
   };
   const badges: Record<string, any> = {};
   const targets: Record<string, any> = {};
+  /** Sky's painted squares (2026-10-09): players stand on the picture; a bought square gets a coloured disc with
+   *  ×1…×4 lying on it, and the square a move ends on glows. */
+  function makePaintedTile(key: string, x: number, z: number, plaza: boolean) {
+    const group = new T.Group();
+    group.position.set(x, 0, z);
+    scene.add(group);
+    const d = 60 * CLOVER_PX; // a painted square is about 56 pixels across
+    const flat = (geo: any, mat: any, y: number) => {
+      const m = new T.Mesh(geo, mat);
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = y;
+      m.visible = false;
+      group.add(m);
+      return m;
+    };
+    const tint = flat(new T.CircleGeometry(d / 2, 40), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78, depthWrite: false, toneMapped: false }), TOP - 0.015);
+    const decal = flat(new T.PlaneGeometry(d * 0.9, d * 0.55), new T.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }), TOP - 0.01);
+    const ring = flat(new T.PlaneGeometry(d * 1.7, d * 1.7), new T.MeshBasicMaterial({ map: glowTex, color: 0xffe066, transparent: true, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false }), TOP - 0.005);
+    if (!plaza) {
+      badges[key] = decal;
+      targets[key] = ring;
+    }
+    tiles[key] = { group, body: tint, base: 0xffffff, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
+  }
   function makeCloverTile(key: string, x: number, z: number) {
     const square = BOARDS[board].squares[key];
     const plaza = square.kind === "plaza";
+    if (ISLANDS[0].tiles === "painted") return makePaintedTile(key, x, z, plaza);
     const group = new T.Group();
     group.position.set(x, STONE_LIFT, z);
     scene.add(group);

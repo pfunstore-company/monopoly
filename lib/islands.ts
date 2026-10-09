@@ -14,6 +14,8 @@ export type IslandArt = {
   h: number;
   /** Where this picture was cut from Sky's original (the board's world maths uses the original's pixels). */
   top: number;
+  /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
+  tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
   squares: At[];
   /** 龍巢 on the plaza: the foot of the nest picture and its width; the player's own dragon lies in it. */
@@ -31,8 +33,8 @@ export type DecorKind = "windmill" | "tower" | "dragon" | "balloon" | "airship";
 export const DECOR_DIR = "/art/islands/decor/";
 
 /**
- * 森林礦島 (Sky 2026-10-09, third drawing): separate plateaus and no stairs — the 18 squares are floating stones
- * (Sky's stone picture) that hop between them. Plaza at the front → quarry (left) → forest (back) → mine (right).
+ * 森林礦島 (Sky 2026-10-09: back to the drawing with painted squares, stairs and bridge — 6 squares in each of the
+ * quarry, forest and mine). Plaza at the front → quarry (left) → forest (back) → mine (right).
  */
 export const ISLANDS: IslandArt[] = [
   {
@@ -40,20 +42,21 @@ export const ISLANDS: IslandArt[] = [
     name: "森林礦島",
     art: "/art/islands/forest.webp",
     w: 941,
-    h: 1230,
-    top: 230,
+    h: 1360,
+    top: 120,
+    tiles: "painted",
     squares: [
-      { x: 478, y: 858 },
-      // 平地 → 石場 → 森林 → 礦場 → 平地: floating stones all the way (Sky 2026-10-09: stones are the bridges)
-      { x: 308, y: 623 }, { x: 233, y: 558 }, { x: 167, y: 484 }, { x: 126, y: 395 }, { x: 134, y: 299 }, { x: 208, y: 241 },
-      { x: 283, y: 216 }, { x: 334, y: 133 }, { x: 421, y: 91 }, { x: 519, y: 85 }, { x: 614, y: 110 }, { x: 680, y: 180 },
-      { x: 753, y: 244 }, { x: 837, y: 287 }, { x: 835, y: 372 }, { x: 760, y: 435 }, { x: 689, y: 501 }, { x: 630, y: 580 },
+      { x: 472, y: 965 },
+      // 石場 (bottom up), 森林 (left to right), 礦場 (top down) — Sky's painted squares
+      { x: 297, y: 768 }, { x: 366, y: 709 }, { x: 384, y: 630 }, { x: 350, y: 557 }, { x: 296, y: 501 }, { x: 212, y: 469 },
+      { x: 280, y: 304 }, { x: 322, y: 243 }, { x: 405, y: 202 }, { x: 513, y: 201 }, { x: 596, y: 239 }, { x: 639, y: 303 },
+      { x: 735, y: 468 }, { x: 653, y: 524 }, { x: 599, y: 588 }, { x: 585, y: 665 }, { x: 625, y: 736 }, { x: 712, y: 770 },
     ],
-    nest: { x: 478, y: 805, w: 250 },
+    nest: { x: 472, y: 940, w: 200 },
     falls: [
-      { x: 118, y: 575, w: 38, h: 180 },
-      { x: 776, y: 570, w: 38, h: 180 },
-      { x: 460, y: 875, w: 42, h: 170 },
+      { x: 451, y: 62, w: 40, h: 86 },
+      { x: 60, y: 560, w: 38, h: 175 },
+      { x: 866, y: 555, w: 30, h: 175 },
     ],
     spots: [
       { x: 470, y: 165, kind: "big" },

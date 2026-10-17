@@ -18,7 +18,7 @@ export const STAKE = ENTRY_FEE - HOUSE_CUT;
 
 export const TURNS_EACH = 12;
 /** 三葉草 counts whole laps instead of rolls (Sky 2026-10-18). */
-export const CLOVER_LAPS = 5;
+export const CLOVER_LAPS = 12;
 /** Up to six at a table (a 領地 seats 2–6; the public table 2–4). */
 export const MAX_SEATS = 6;
 export const START_PAY = 2;

@@ -58,7 +58,7 @@ function Decor({ kind, at, w, island }: { kind: DecorKind; at: At; w: number; is
 /** One island, fitted inside its box without cropping, floating gently. */
 function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
   const box = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [size, setSize] = useState({ w: 0, h: 0, drop: 0 });
   const [pet, setPet] = useState<{ element: number; stage: number } | null>(null);
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -71,8 +71,10 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
     if (!el) return;
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
-      const scale = Math.min(width / island.w, height / island.h);
-      setSize({ w: island.w * scale, h: island.h * scale });
+      // Fill the width; the falling rocks at the bottom of a tall picture may run off the page (Sky 2026-10-18:
+      // 溫泉島 should look as big as 火山島).
+      const scale = Math.min(width / island.w, height / (island.h * 0.85));
+      setSize({ w: island.w * scale, h: island.h * scale, drop: Math.max(0, (island.h * scale - height) / 2) });
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -81,7 +83,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
   }, [island]);
   return (
     <div ref={box} className="flex h-full w-full items-center justify-center">
-      <div className="relative animate-[isle-float_6s_ease-in-out_infinite]" style={{ width: size.w, height: size.h }} data-testid={`island-${island.id}`}>
+      <div className="relative shrink-0 animate-[isle-float_6s_ease-in-out_infinite]" style={{ width: size.w, height: size.h, marginTop: size.drop * 2 }} data-testid={`island-${island.id}`}>
         <img src={island.art} alt="" draggable={false} className="absolute inset-0 h-full w-full select-none" />
         {island.falls.map((f, i) => (
           <div

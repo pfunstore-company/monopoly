@@ -18,6 +18,7 @@ import {
   SAND_BACK,
   botMove,
   canPlay,
+  isSpecial,
   type Power,
   netWorth,
   newTable,
@@ -104,12 +105,19 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
   monster: { name: "怪獸卡", icon: "👹", what: "叫怪獸打對手：搶 2、打退 3 格" },
   levy: { name: "收保護費", icon: "🤑", what: "每個對手即刻俾你 1 粒" },
   double: { name: "雙倍租", icon: "💰", what: "兩圈內你啲地收雙倍租" },
+  // 特別卡 (領地 only, Sky 2026-10-18)
+  dragon: { name: "龍息", icon: "🐉", what: "龍飛出嚟燒走對手一塊地，變返冇人擁有" },
+  meteor: { name: "天降隕石", icon: "☄️", what: "揀一個區，對手喺嗰區嘅地全部降一級" },
+  blackhole: { name: "黑洞", icon: "🌀", what: "全部對手被吸走，送返起點" },
+  goldroad: { name: "黃金之路", icon: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
+  iceage: { name: "冰河時代", icon: "❄️", what: "全部對手結冰，停一轉" },
 };
 
 /** Cards with a drawn picture; the newer ones show their emoji until they get one. */
 const CARD_ART = new Set<Power>(["boost", "lock", "wreck", "swap", "shield", "monster", "levy", "double"]);
 function CardPic({ power, className }: { power: Power; className?: string }) {
   if (CARD_ART.has(power)) return <img src={`/art/cards/${power}.webp`} alt="" draggable={false} className={cn("object-contain", className)} />;
+  if (isSpecial(power)) return <img src={`/art/specials/${power}.webp`} alt="" draggable={false} className={cn("rounded-md border-2 border-[#FBD000] object-cover", className)} />;
   return (
     <span className={cn("flex items-center justify-center leading-none", className)} style={{ fontSize: "0.8em" }} aria-hidden>
       {POWER_INFO[power].icon}
@@ -461,6 +469,15 @@ export function EightBoard({
           case "fork":
             say(state.seats[event.seat]?.bot ? "{name} 喺分岔路口" : "揀路", { name: who(event.seat) });
             break;
+          case "goldLot":
+            play("coin");
+            void scene.floatText(event.seat, "✨", "#FBD000");
+            await scene.own(event.key, event.seat, 1);
+            break;
+          case "thawed":
+            void scene.floatText(event.seat, "❄️", "#38BDF8");
+            await scene.wait(500);
+            break;
           case "bought":
             play("coin");
             say("{name} 買地起樓 −{n}", { name: who(event.seat), n: E(event.price) });
@@ -582,6 +599,34 @@ export function EightBoard({
             } else if (event.power === "double") {
               play("lucky");
               say("{name} 啲地兩圈內收雙倍租！", { name: who(event.seat) });
+              await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
+            } else if (event.power === "dragon" && event.key) {
+              play("smash");
+              juice("large", undefined, window.innerHeight * 0.45);
+              await scene.blast(event.key);
+              await scene.blast(event.key);
+              scene.clear(event.key);
+            } else if (event.power === "meteor") {
+              play("smash");
+              juice("large", undefined, window.innerHeight * 0.45);
+              for (const [key, level] of Object.entries(event.levels ?? {})) {
+                await scene.blast(key);
+                const owner = state.deeds[key]?.owner;
+                if (level > 0 && owner !== undefined) await scene.own(key, owner, level);
+                else scene.clear(key);
+              }
+            } else if (event.power === "blackhole") {
+              play("lucky");
+              juice("large", undefined, window.innerHeight * 0.45);
+              await Promise.all((event.targets ?? []).map((o) => scene.puff(o)));
+              for (const o of event.targets ?? []) scene.warp(o, state.seats[o].spot);
+              await Promise.all((event.targets ?? []).map((o) => scene.puff(o)));
+            } else if (event.power === "iceage") {
+              play("smash");
+              juice("medium", undefined, window.innerHeight * 0.45);
+              await Promise.all((event.targets ?? []).map((o) => Promise.all([scene.floatText(o, "❄️", "#38BDF8"), scene.sparkle(o)])));
+            } else if (event.power === "goldroad") {
+              play("lucky");
               await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
             } else if (event.power === "swap" && event.target !== undefined) {
               play("lucky");
@@ -1181,7 +1226,7 @@ export function EightBoard({
                 );
               })}
             </ol>
-            {realm ? <HostReport realm={realm} guests={table.seats.length} houseRent={table.hostIncome} /> : null}
+            {realm ? <HostReport realm={realm} guests={Math.max(0, table.seats.length - 1)} houseRent={table.hostIncome} /> : null}
             {guestTicket !== undefined ? (
               <p className="mt-3 text-center text-sm font-black text-[#4C1D95]">{t("你入場付咗門票 {n} 能量", { n: E(guestTicket) })}</p>
             ) : null}

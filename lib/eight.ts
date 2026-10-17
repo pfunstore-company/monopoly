@@ -257,6 +257,10 @@ export type Seat = {
   artisan?: boolean;
   /** 角色能力 (Sky 2026-10-17): used once this game (阿科's half rent, 阿神's extra roll). */
   perkUsed?: boolean;
+  /** 黃金之路: the next walk takes every empty lot it passes. */
+  goldRoad?: boolean;
+  /** 冰河時代: misses the next turn. */
+  frozen?: boolean;
 };
 
 /**
@@ -280,7 +284,20 @@ export type Deed = { owner: number; level: number; locked?: number };
  * bank) · swap 換位: trade places with an opponent · shield 免租牌: the next rent you'd pay is let off
  * (used by itself when it happens).
  */
-export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" | "levy" | "double";
+export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" | "levy" | "double" | Special;
+/**
+ * 特別卡 (Sky 2026-10-18): the 領地 cards. Each player takes up to SPECIALS_IN three into the game, and every lap
+ * deals each player one more. dragon 龍息 burns an opponent's best lot back to nobody's · meteor 天降隕石 drops every
+ * opponent lot in their strongest area a level · blackhole 黑洞 sends every opponent back to the plaza · goldroad
+ * 黃金之路: on your next roll every empty lot you walk over becomes yours · iceage 冰河時代: every opponent misses
+ * their next turn.
+ */
+export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage";
+export const SPECIAL_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "goldroad", "iceage"];
+export const SPECIALS_IN = 3;
+export function isSpecial(power: Power): power is Special {
+  return (SPECIAL_CARDS as readonly string[]).includes(power);
+}
 /**
  * Sky (2026-10-03), two more: levy 收保護費 — every opponent pays you LEVY at once · double 雙倍租 —
  * your lots collect double rent for two rounds.
@@ -314,8 +331,6 @@ export const CHEST_POWER_ODDS = 3;
 /** Out of 10 crossroads (on top of the +1) and passes of start (on top of the pay). */
 export const CROSS_POWER_ODDS = 2;
 export const START_POWER_ODDS = 1;
-/** On the 領地 board, out of 10, coming round to the plaza deals a power card. */
-export const CLOVER_POWER_ODDS = 5;
 
 /** A power card from this landing's draw, if the odds (out of 10) say so and there's room in the hand. */
 function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[], salt = 0): TableState | null {
@@ -357,7 +372,11 @@ export type TableEvent =
   /** Drew a power card at a chance square. */
   | { kind: "power"; seat: number; power: Power }
   /** Played a power card. `levels`: each lot's new level (boost, wreck; 0 = back to the bank). */
-  | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number>; paid?: Record<number, number> }
+  | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number>; paid?: Record<number, number>; targets?: number[] }
+  /** 黃金之路 took this empty lot on the way. */
+  | { kind: "goldLot"; seat: number; key: string }
+  /** 冰河時代: this player's turn is skipped. */
+  | { kind: "thawed"; seat: number }
   /** A 雙倍租 ran out. */
   | { kind: "doubleOver"; seat: number }
   /** A 免租牌 let this rent off. */
@@ -430,7 +449,7 @@ export type TableAction =
   | { type: "power"; index: number; target?: number };
 
 export function newTable(
-  players: { name: string; avatar: string; colour: string; bot: boolean }[],
+  players: { name: string; avatar: string; colour: string; bot: boolean; specials?: Special[] }[],
   rules: Partial<TableRules> = {},
   board: BoardId = "eight",
 ): TableState {
@@ -448,7 +467,7 @@ export function newTable(
     // 三葉草 has no land to buy, so no power cards either: it's all about the materials.
     pickups: clover ? [] : [firstPickup(board, players.length)],
 
-    seats: players.slice(0, MAX_SEATS).map((player) => ({
+    seats: players.slice(0, MAX_SEATS).map(({ specials, ...player }) => ({
       ...player,
       cash: STAKE,
       spot: { on: "loop", i: 0 },
@@ -456,7 +475,8 @@ export function newTable(
       bankrupt: false,
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
-      powers: [...START_POWERS], // 領地 too (Sky 2026-10-18)
+      // 領地 (Sky 2026-10-18): the 特別卡 each player brought in (up to three) instead.
+      powers: clover ? [...(specials ?? [])].slice(0, SPECIALS_IN) : [...START_POWERS],
 
     })),
     deeds: {},
@@ -543,7 +563,24 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const lapDone = passedStart && state.board === "clover" ? { turnsTaken: player.turnsTaken + 1 } : {};
   const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
   // 領地 has no cards lying on the squares, so coming round to the plaza deals one more often (Sky 2026-10-18).
-  return passedStart ? (drawPower(moved, seat, state.board === "clover" ? CLOVER_POWER_ODDS : START_POWER_ODDS, events, 2) ?? moved) : moved;
+  if (passedStart && state.board === "clover") {
+    // Every lap deals one more 特別卡 (Sky 2026-10-18), if there's room in the hand.
+    if (moved.seats[seat].powers.length >= MAX_POWERS) return moved;
+    const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + seat * 7 + player.turnsTaken * 13;
+    const power = SPECIAL_CARDS[seed % SPECIAL_CARDS.length];
+    events.push({ kind: "power", seat, power });
+    return withSeat(moved, seat, { powers: [...moved.seats[seat].powers, power] });
+  }
+  // 黃金之路: an empty lot walked over becomes yours.
+  if (player.goldRoad && to.on === "loop" && to.i > 0) {
+    const key = BOARDS[state.board].keyOf(to);
+    const sq = BOARDS[state.board].squares[key];
+    if (sq?.kind === "lot" && !moved.deeds[key] && moved.rules.houses[key] === undefined) {
+      events.push({ kind: "goldLot", seat, key });
+      return { ...moved, deeds: { ...moved.deeds, [key]: { owner: seat, level: 1 } } };
+    }
+  }
+  return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
 }
 
 /** Walk the steps left, stopping at a fork to ask. */
@@ -762,6 +799,7 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     deeds[key] = locked > 0 ? { ...deed, locked } : { owner: deed.owner, level: deed.level };
     if (locked <= 0) events.push({ kind: "unlocked", key });
   }
+  if (state.seats[state.current]?.goldRoad) state = withSeat(state, state.current, { goldRoad: undefined });
   let done = state.board === "clover" ? { ...state, deeds } : withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
   // 雙倍租 counts down with every turn, like a lock.
   done.seats.forEach((seat, i) => {
@@ -783,9 +821,17 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
   }
   if (isOver(done)) return { ...done, phase: "over", stepsLeft: 0 };
   let seat = done.current;
-  for (let i = 0; i < done.seats.length; i += 1) {
+  for (let i = 0; i < done.seats.length * 2; i += 1) {
     seat = (seat + 1) % done.seats.length;
-    if (!done.seats[seat].bankrupt && done.seats[seat].turnsTaken < done.rules.turnsEach) break;
+    if (done.seats[seat].bankrupt || done.seats[seat].turnsTaken >= done.rules.turnsEach) continue;
+    // 冰河時代: a frozen player thaws and misses this turn (unless nobody else could go).
+    if (done.seats[seat].frozen && alive(done).some((o) => o !== seat && !done.seats[o].frozen)) {
+      done = withSeat(done, seat, { frozen: undefined });
+      events.push({ kind: "thawed", seat });
+      continue;
+    }
+    if (done.seats[seat].frozen) done = withSeat(done, seat, { frozen: undefined });
+    break;
   }
   events.push({ kind: "turn", seat });
   return { ...done, current: seat, phase: "roll", stepsLeft: 0 };
@@ -873,6 +919,10 @@ export function bestTarget(state: TableState, seat: number): string | null {
 /** Whether a power card can do anything right now (shield only works by itself). */
 export function canPlay(state: TableState, seat: number, power: Power): boolean {
   if (power === "shield") return false;
+  if (power === "dragon" || power === "meteor") return bestTarget(state, seat) !== null;
+  if (power === "blackhole") return opponents(state, seat).some((o) => !(state.seats[o].spot.on === "loop" && state.seats[o].spot.i === 0));
+  if (power === "iceage") return opponents(state, seat).some((o) => !state.seats[o].frozen);
+  if (power === "goldroad") return !state.seats[seat].goldRoad;
   if (power === "boost") return Object.values(state.deeds).some((d) => d.owner === seat && d.level < MAX_LEVEL);
   if (power === "swap" || power === "monster") return opponents(state, seat).length > 0;
   if (power === "levy") return opponents(state, seat).some((other) => state.seats[other].cash > 0);
@@ -889,6 +939,49 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
   const power = player.powers[index];
   if (!power || !canPlay(state, seat, power)) return state;
   const hand = { powers: player.powers.filter((_, i) => i !== index) };
+  if (power === "dragon") {
+    const key = bestTarget(state, seat)!;
+    const owner = state.deeds[key].owner;
+    const deeds = { ...state.deeds };
+    delete deeds[key];
+    events.push({ kind: "played", seat, power, key, target: owner, levels: { [key]: 0 } });
+    return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "meteor") {
+    // The area (six squares) where the opponents hold the most levels.
+    const area = (key: string) => Math.floor((Number(/\d+/.exec(key)?.[0] ?? 0) - 1) / 6);
+    const score = [0, 0, 0];
+    for (const [key, d] of Object.entries(state.deeds)) if (d.owner !== seat) score[area(key)] = (score[area(key)] ?? 0) + d.level;
+    const zone = score.indexOf(Math.max(...score));
+    const deeds = { ...state.deeds };
+    const levels: Record<string, number> = {};
+    for (const [key, d] of Object.entries(state.deeds)) {
+      if (d.owner === seat || area(key) !== zone) continue;
+      if (d.level > 1) deeds[key] = { ...d, level: d.level - 1 };
+      else delete deeds[key];
+      levels[key] = d.level - 1;
+    }
+    events.push({ kind: "played", seat, power, levels });
+    return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "blackhole") {
+    let next = withSeat(state, seat, hand);
+    const targets = opponents(state, seat);
+    for (const o of targets) next = withSeat(next, o, { spot: { on: "loop", i: 0 }, jailed: false });
+    events.push({ kind: "played", seat, power, targets });
+    return next;
+  }
+  if (power === "iceage") {
+    let next = withSeat(state, seat, hand);
+    const targets = opponents(state, seat);
+    for (const o of targets) next = withSeat(next, o, { frozen: true });
+    events.push({ kind: "played", seat, power, targets });
+    return next;
+  }
+  if (power === "goldroad") {
+    events.push({ kind: "played", seat, power });
+    return withSeat(state, seat, { ...hand, goldRoad: true });
+  }
   if (power === "boost") {
     const deeds = { ...state.deeds };
     const levels: Record<string, number> = {};
@@ -966,7 +1059,8 @@ export function botMove(state: TableState, random: () => number): TableAction {
   // Half the time, play a card that would do something.
   const hand = state.seats[state.current].powers;
   const index = hand.findIndex((power) => canPlay(state, state.current, power));
-  if (index >= 0 && random() < 0.5) {
+  // 特別卡 are strong, so the computer holds them a little longer.
+  if (index >= 0 && random() < (isSpecial(hand[index]) ? 0.3 : 0.5)) {
     const others = opponents(state, state.current);
     return { type: "power", index, target: others[Math.floor(random() * others.length)] };
   }

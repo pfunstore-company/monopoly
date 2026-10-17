@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { BUILD_ASPECT, BUILD_W, DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
+import { BUILD_ART, DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
 import { buildMonster } from "@/components/monster";
 import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
@@ -1035,61 +1035,46 @@ export function createBoardScene(
   const targets: Record<string, any> = {};
   /** Sky's painted squares (2026-10-09): players stand on the picture; a bought square gets a coloured disc with
    *  ×1…×4 lying on it, and the square a move ends on glows. */
-  // 領地 buildings (Sky 2026-10-18): what was bought grows beside its square — 樹林, 石屋 or 礦場 by area, bigger
-  // with each level — standing up to the camera on the outer side of the path, with a little flag in the owner's colour.
-  const BUILD_SCALE = 1.4;
+  // 領地 buildings (Sky 2026-10-18, second go): the building comes on its own round stone, laid right over the
+  // painted square, so it grows out of the square itself. The front of the stone's gold rim takes the owner's colour.
   const buildTex: Record<string, any> = {};
-  const buildPic = (name: string) => {
-    if (!buildTex[name]) {
-      const t = new T.TextureLoader().load(`/art/islands/build/${name}.webp`);
+  const buildPic = (file: string) => {
+    if (!buildTex[file]) {
+      const t = new T.TextureLoader().load(`/art/islands/build2/${file}.webp`);
       t.encoding = T.sRGBEncoding;
-      buildTex[name] = t;
+      buildTex[file] = t;
     }
-    return buildTex[name];
+    return buildTex[file];
   };
   function paintedBuilding(key: string, level: number, colour: string) {
     const i = Number(/^o(\d+)$/.exec(key)?.[1] ?? 0);
     const isle = CLOVER_ISLE;
     if (!i || !isle.zones || !isle.squares[i]) return null;
     const kind = isle.zones[Math.min(2, Math.floor((i - 1) / 6))];
-    const lv = Math.max(1, Math.min(4, level));
-    const name = `${kind}${lv}`;
-    // Out from the middle of the board, beside the square.
-    const sq = isle.squares[i], ring = isle.squares.slice(1);
-    const cx = ring.reduce((a, p) => a + p.x, 0) / ring.length, cy = ring.reduce((a, p) => a + p.y, 0) / ring.length;
-    let dx = sq.x - cx, dy = (sq.y - cy) * 1.6;
-    const len = Math.hypot(dx, dy) || 1;
-    dx /= len;
-    dy /= len;
-    const [x0, z0] = isleAt(sq.x, sq.y), [x1, z1] = isleAt(sq.x + dx * 50, sq.y + dy * 30 - 6);
+    const name = `${kind}${Math.max(1, Math.min(4, level))}`;
+    const art = BUILD_ART[name];
+    // Squares nearer the front are painted a little bigger.
+    const ring = isle.squares.slice(1), ys = ring.map((p) => p.y), top = Math.min(...ys), bottom = Math.max(...ys);
+    const depth = 0.9 + 0.2 * ((isle.squares[i].y - top) / Math.max(1, bottom - top));
+    const w = (((isle.squareW ?? 60) * depth * 1.1) / art.plat) * CLOVER_PX, h = w * art.aspect;
     const g = new T.Group();
-    g.position.set(x1 - x0, TOP, z1 - z0);
     const lean = new T.Group();
     lean.rotation.x = -CLOVER_ELEV;
+    lean.position.y = TOP;
     g.add(lean);
-    const w = BUILD_W[lv] * CLOVER_PX * BUILD_SCALE, h = w * (BUILD_ASPECT[name] ?? 1);
-    const geo = new T.PlaneGeometry(w, h);
-    geo.translate(0, h / 2, 0);
-    const pic = new T.Mesh(geo, new T.MeshBasicMaterial({ map: buildPic(name), transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
+    const plane = () => {
+      const geo = new T.PlaneGeometry(w, h);
+      geo.translate(-(art.cx - 0.5) * w, -(0.5 - art.cy) * h, 0);
+      return geo;
+    };
+    const pic = new T.Mesh(plane(), new T.MeshBasicMaterial({ map: buildPic(name), transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
+    pic.material.color.setRGB(0.93, 0.93, 0.93); // a touch darker, to sit in the island's light
     pic.renderOrder = 2;
     lean.add(pic);
-    // The owner's flag on a thin pole at the top corner.
-    const pole = new T.Mesh(new T.PlaneGeometry(w * 0.03, h * 0.32), new T.MeshBasicMaterial({ color: 0x5b4636, depthWrite: false, toneMapped: false }));
-    pole.position.set(w * 0.36, h * 0.92 + h * 0.16, 0.002);
-    pole.renderOrder = 3;
-    lean.add(pole);
-    const flagShape = new T.Shape();
-    flagShape.moveTo(0, 0);
-    flagShape.lineTo(w * 0.2, -h * 0.06);
-    flagShape.lineTo(0, -h * 0.12);
-    const flag = new T.Mesh(new T.ShapeGeometry(flagShape), new T.MeshBasicMaterial({ color: new T.Color(colour), side: T.DoubleSide, depthWrite: false, toneMapped: false }));
-    flag.position.set(w * 0.36 + w * 0.015, h * 0.92 + h * 0.32, 0.003);
-    flag.renderOrder = 3;
-    lean.add(flag);
-    const seed = Math.random() * 6;
-    islandAnims.push((now) => {
-      if (flag.parent) flag.scale.x = 0.82 + 0.18 * Math.sin(now / 260 + seed);
-    });
+    const rim = new T.Mesh(plane(), new T.MeshBasicMaterial({ map: buildPic(`${name}-rim`), color: new T.Color(colour), transparent: true, depthWrite: false, toneMapped: false }));
+    rim.position.z = 0.002;
+    rim.renderOrder = 3;
+    lean.add(rim);
     return g;
   }
   function makePaintedTile(key: string, x: number, z: number, plaza: boolean) {
@@ -1105,7 +1090,8 @@ export function createBoardScene(
       group.add(m);
       return m;
     };
-    const tint = flat(new T.CircleGeometry(d / 2, 40), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78, depthWrite: false, toneMapped: false }), TOP - 0.015);
+    // The owner's colour as a ring round the painted stone (Sky 2026-10-18: not a solid sticker over it).
+    const tint = flat(new T.RingGeometry(d * 0.4, d * 0.54, 48), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false }), TOP - 0.015);
     const decal = flat(new T.PlaneGeometry(d * 0.9, d * 0.55), new T.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }), TOP - 0.01);
     const ring = flat(new T.PlaneGeometry(d * 1.7, d * 1.7), new T.MeshBasicMaterial({ map: glowTex, color: 0xffe066, transparent: true, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false }), TOP - 0.005);
     if (!plaza) {
@@ -2187,6 +2173,7 @@ export function createBoardScene(
           tile.house = house;
           house.scale.set(1, 0.01, 1);
           if (badge) badge.visible = false;
+          tile.body.visible = false; // the building's own stone carries the owner's colour
         }
         await tween(600, (k) => {
           m.color.copy(from).lerp(to, Math.min(1, k * 1.5));

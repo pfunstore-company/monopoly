@@ -2,9 +2,11 @@
 
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
-import { CAST, EightBoard, seatsFor } from "@/components/table-game";
+import { EightBoard, seatsFor } from "@/components/table-game";
+import { SPECIAL_CARDS, SPECIALS_IN, type Special } from "@/lib/eight";
+import { SPECIALS } from "@/lib/shop";
 import { ISLANDS } from "@/lib/islands";
-import { loadNestLevel, loadPet, loadWallet, saveWallet } from "@/components/wallet-store";
+import { loadCollection, loadNestLevel, loadPet, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import { CHARACTERS, PERKS, savePick, savedPick } from "@/lib/characters";
@@ -61,7 +63,15 @@ function saveRealm(realm: Realm) {
   }
 }
 
-type Game = { id: number; kind: "host" } | { id: number; kind: "guest"; listing: Listing; pick: number };
+type Game = { id: number; kind: "host"; pick: number; specials: Special[] } | { id: number; kind: "guest"; listing: Listing; pick: number; specials: Special[] };
+
+/** You with the 特別卡 you brought, then computer players with two random ones each (Sky 2026-10-18). */
+function withSpecials(players: ReturnType<typeof seatsFor>, mine: Special[]) {
+  return players.map((p, i) => ({
+    ...p,
+    specials: i === 0 ? mine : [0, 1].map(() => SPECIAL_CARDS[Math.floor(Math.random() * SPECIAL_CARDS.length)]),
+  }));
+}
 
 /** 第三層 領地 (practice): the list of lands to visit, and your own land (empty until you buy one). */
 export function RealmScreen({ onExit }: { onExit: () => void }) {
@@ -70,7 +80,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
   const [wallet, setWallet] = useState<Wallet>({ points: 0, stock: { wood: 0, stone: 0, gold: 0 } });
   const [tab, setTab] = useState<"list" | "mine">("mine");
   const [game, setGame] = useState<Game | null>(null);
-  const [picking, setPicking] = useState<Listing | null>(null);
+  const [picking, setPicking] = useState<Listing | "host" | null>(null);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -95,13 +105,13 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
     return (
       <EightBoard
         key={game.id}
-        players={CAST.slice(1, 1 + realm.minPlayers)}
+        players={withSpecials(seatsFor(game.pick, realm.minPlayers - 1), game.specials)}
         board={boardOf(realm)}
         rules={rulesOf(realm)}
         decor={decorOf(realm)}
         realm={realm}
         onExit={() => setGame(null)}
-        onAgain={() => setGame({ id: Date.now(), kind: "host" })}
+        onAgain={() => setGame(null)}
       />
     );
   }
@@ -110,7 +120,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
     return (
       <EightBoard
         key={game.id}
-        players={seatsFor(game.pick, land.minPlayers - 1)}
+        players={withSpecials(seatsFor(game.pick, land.minPlayers - 1), game.specials)}
         board={boardOf(land)}
         rules={rulesOf(land)}
         decor={decorOf(land)}
@@ -126,12 +136,20 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
     if (wallet.points < listing.realm.ticket) return;
     setPicking(listing);
   };
-  const enter = (listing: Listing, pick: number) => {
+  /** The 特別卡 brought in are used up from your collection. */
+  const spend = (specials: Special[]) => {
+    let c = loadCollection();
+    for (const id of specials) c = { ...c, specials: { ...c.specials, [id]: Math.max(0, (c.specials[id] ?? 0) - 1) } };
+    saveCollection(c);
+  };
+  const enter = (listing: Listing | "host", pick: number, specials: Special[]) => {
     play("coin");
     savePick(pick);
-    update({ wallet: { ...wallet, points: wallet.points - listing.realm.ticket } });
+    spend(specials);
     setPicking(null);
-    setGame({ id: Date.now(), kind: "guest", listing, pick });
+    if (listing === "host") return setGame({ id: Date.now(), kind: "host", pick, specials });
+    update({ wallet: { ...wallet, points: wallet.points - listing.realm.ticket } });
+    setGame({ id: Date.now(), kind: "guest", listing, pick, specials });
   };
 
   return (
@@ -181,9 +199,9 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
       {tab === "list" ? (
         <RealmList realm={realm} wallet={wallet} onJoin={join} onMine={() => setTab("mine")} />
       ) : (
-        <RealmEditor realm={realm} onChange={update} onHost={() => setGame({ id: Date.now(), kind: "host" })} />
+        <RealmEditor realm={realm} onChange={update} onHost={() => setPicking("host")} />
       )}
-      {picking ? <CharacterPick onPick={(pick) => enter(picking, pick)} onClose={() => setPicking(null)} /> : null}
+      {picking ? <CharacterPick onPick={(pick, specials) => enter(picking, pick, specials)} onClose={() => setPicking(null)} /> : null}
     </main>
   );
 }
@@ -397,13 +415,19 @@ function Stepper({
 }
 
 /** 揀角色 before playing on someone's land (testing: every character can be picked). */
-function CharacterPick({ onPick, onClose }: { onPick: (pick: number) => void; onClose: () => void }) {
+function CharacterPick({ onPick, onClose }: { onPick: (pick: number, specials: Special[]) => void; onClose: () => void }) {
   const { t } = useLang();
   const [pick, setPick] = useState(0);
+  const [held, setHeld] = useState<Partial<Record<Special, number>>>({});
+  const [chosen, setChosen] = useState<Special[]>([]);
   useEffect(() => {
-    const id = window.setTimeout(() => setPick(savedPick()), 0);
+    const id = window.setTimeout(() => {
+      setPick(savedPick());
+      setHeld(loadCollection().specials);
+    }, 0);
     return () => window.clearTimeout(id);
   }, []);
+  const count = (id: Special) => chosen.filter((c) => c === id).length;
   return (
     <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/50" onClick={onClose}>
       <div
@@ -427,9 +451,32 @@ function CharacterPick({ onPick, onClose }: { onPick: (pick: number) => void; on
             </button>
           ))}
         </div>
+        {/* 特別卡 to bring in (Sky 2026-10-18): up to three, used up when the game starts. */}
+        <p className="text-center text-sm font-black">{t("帶特別卡入場（最多 {n} 張）", { n: SPECIALS_IN })}</p>
+        <div className="grid grid-cols-5 gap-1.5" data-testid="special-pick">
+          {SPECIAL_CARDS.map((id) => {
+            const have = held[id] ?? 0, n = count(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                disabled={have === 0}
+                onClick={() =>
+                  setChosen((c) => (n < have && c.length < SPECIALS_IN ? [...c, id] : n > 0 ? c.filter((x, i) => i !== c.lastIndexOf(id) || x !== id) : c))
+                }
+                className={cn("relative flex cursor-pointer flex-col items-center rounded-xl p-0.5 disabled:cursor-default disabled:opacity-35", n > 0 && "bg-[#FFF8D6] ring-2 ring-[#FBD000]")}
+              >
+                <img src={`/art/specials/${id}.webp`} alt="" className="aspect-square w-full rounded-lg border-2 border-[#FBD000] object-cover" />
+                <span className="text-[10px] font-black leading-tight">{t(SPECIALS.find((c) => c.id === id)?.name ?? "")}</span>
+                <span className="text-[9px] font-bold text-[#3B5BA9]">×{have}</span>
+                {n > 0 ? <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-[#E52521] text-[11px] font-black text-white">{n}</span> : null}
+              </button>
+            );
+          })}
+        </div>
         <button
           type="button"
-          onClick={() => onPick(pick)}
+          onClick={() => onPick(pick, chosen)}
           className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#22A447] to-[#167A33] text-xl font-black text-white shadow-[0_5px_0_#0F5A25]"
           data-testid="realm-enter"
         >

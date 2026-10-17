@@ -26,6 +26,8 @@ export type IslandArt = {
   glows?: (At & { r: number; colour: string })[];
   /** What grows beside the squares of each area once bought (left, back, right; Sky 2026-10-18). */
   zones?: [BuildKind, BuildKind, BuildKind];
+  /** How wide a painted square is in this picture (pixels), so a building's stone covers it. */
+  squareW?: number;
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -40,16 +42,26 @@ export type IslandArt = {
   decor: { kind: DecorKind; spot: number; w: number }[];
 };
 
-/** 領地 buildings (Sky's drawings 2026-10-18): 樹林 wood, 石屋 stone, 礦場 mine — four levels each, in /art/islands/build. */
+/** 領地 buildings (Sky's drawings 2026-10-18): 樹林 wood, 石屋 stone, 礦場 mine — four levels each, in /art/islands/build2. */
 export type BuildKind = "wood" | "stone" | "mine";
-/** Height ÷ width of each building picture. */
-export const BUILD_ASPECT: Record<string, number> = {
-  wood1: 1.385, wood2: 0.906, wood3: 1.049, wood4: 0.919,
-  stone1: 0.925, stone2: 1.016, stone3: 1.06, stone4: 1.19,
-  mine1: 0.803, mine2: 0.95, mine3: 1.026, mine4: 1.115,
+/**
+ * Each building picture (Sky 2026-10-18: the building sits on its own round stone, which covers the painted square):
+ * height ÷ width, the stone's width as a share of the picture, and the stone's middle (0–1 across, 0–1 down).
+ */
+export const BUILD_ART: Record<string, { aspect: number; plat: number; cx: number; cy: number }> = {
+  mine1: { aspect: 0.7489, plat: 0.9005, cx: 0.4977, cy: 0.4286 },
+  mine2: { aspect: 0.9216, plat: 0.9068, cx: 0.4979, cy: 0.5397 },
+  mine3: { aspect: 1.0217, plat: 0.9094, cx: 0.5, cy: 0.5921 },
+  mine4: { aspect: 1.0424, plat: 0.9134, cx: 0.4992, cy: 0.6103 },
+  stone1: { aspect: 0.8899, plat: 0.8989, cx: 0.4989, cy: 0.5182 },
+  stone2: { aspect: 0.9219, plat: 0.9072, cx: 0.4979, cy: 0.5403 },
+  stone3: { aspect: 1.0285, plat: 0.9146, cx: 0.4991, cy: 0.5933 },
+  stone4: { aspect: 1.0469, plat: 0.9149, cx: 0.4991, cy: 0.6109 },
+  wood1: { aspect: 0.9307, plat: 0.8984, cx: 0.5, cy: 0.5382 },
+  wood2: { aspect: 0.8966, plat: 0.9052, cx: 0.5, cy: 0.5251 },
+  wood3: { aspect: 1.056, plat: 0.9135, cx: 0.4997, cy: 0.6078 },
+  wood4: { aspect: 0.9835, plat: 0.9094, cx: 0.4975, cy: 0.5912 },
 };
-/** Width of a building on the island at each level, in the island picture's pixels (a square is about 60 across). */
-export const BUILD_W = [0, 44, 56, 66, 78];
 
 /** 裝飾 (Sky's drawings 2026-10-09); code moves them — the flag waves, the balloon floats, the airship sails. */
 export type DecorKind = "windmill" | "tower" | "dragon" | "balloon" | "airship";
@@ -70,6 +82,7 @@ export const ISLANDS: IslandArt[] = [
     h: 1360,
     top: 120,
     zones: ["stone", "wood", "mine"],
+    squareW: 60,
     tiles: "painted",
     squares: [
       { x: 472, y: 965 },
@@ -114,6 +127,7 @@ export const ISLANDS: IslandArt[] = [
     left: 86,
     flow: "lava",
     zones: ["wood", "stone", "mine"],
+    squareW: 58,
     tiles: "painted",
     squares: [
       { x: 388, y: 730 },
@@ -140,6 +154,7 @@ export const ISLANDS: IslandArt[] = [
     top: 128,
     left: 88,
     zones: ["wood", "stone", "mine"],
+    squareW: 66,
     tiles: "painted",
     squares: [
       { x: 387, y: 865 },
@@ -174,6 +189,7 @@ export const ISLANDS: IslandArt[] = [
     top: 297,
     left: 135,
     zones: ["wood", "stone", "mine"],
+    squareW: 80,
     tiles: "painted",
     squares: [
       { x: 336, y: 723 },

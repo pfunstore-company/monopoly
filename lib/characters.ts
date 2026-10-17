@@ -3,11 +3,11 @@
 export const CHARACTERS = [
   { name: "伯爵", avatar: "/art/avatars/vampire.jpg", colour: "#7C3AED", actor: "vampire" },
   { name: "阿殭", avatar: "/art/avatars/jiangshi.jpg", colour: "#2563EB", actor: "jiangshi" },
-  { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#D97706", actor: "mummy" },
+  { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#EAB308", actor: "mummy" },
   { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A", actor: "zombie" },
-  { name: "阿瓜", avatar: "/art/avatars/pumpkin.jpg", colour: "#EA580C", actor: "pumpkin" },
-  { name: "阿科", avatar: "/art/avatars/franken.jpg", colour: "#0891B2", actor: "franken" },
-  { name: "阿神", avatar: "/art/avatars/reaper.jpg", colour: "#9333EA", actor: "reaper" },
+  { name: "阿瓜", avatar: "/art/avatars/pumpkin.jpg", colour: "#F97316", actor: "pumpkin" },
+  { name: "阿科", avatar: "/art/avatars/franken.jpg", colour: "#EC4899", actor: "franken" },
+  { name: "阿神", avatar: "/art/avatars/reaper.jpg", colour: "#DC2626", actor: "reaper" },
 ] as const;
 
 /** What each character can do (shown when picking). */

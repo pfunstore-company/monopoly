@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { DECOR_DIR, ISLANDS } from "@/lib/islands";
+import { DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
 import { buildMonster } from "@/components/monster";
 import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
@@ -137,6 +137,8 @@ export type Decor = {
   stations: number;
   /** 龍巢 (三葉草): its level 1–3 and the owner's dragon lying in it. */
   nest?: { level: number; pet: { element: number; stage: number } | null };
+  /** Which painted island (lib/islands id); the forest island if unset. */
+  isle?: string;
 };
 
 // ---------- Layout (world units; x right, z toward the viewer) ----------
@@ -180,8 +182,16 @@ export const CLOVER_ELEV = (50 * Math.PI) / 180;
 const CLOVER_PX = 1 / 75;
 const cloverAt = (px: number, py: number): [number, number] => [(px - 476) * CLOVER_PX, ((py - 680) * CLOVER_PX) / Math.sin(CLOVER_ELEV)];
 /** Sky's painted island (lib/islands): where each square is, in the original picture's pixels. */
-const CLOVER_ISLAND = { url: ISLANDS[0].art, w: ISLANDS[0].w, h: ISLANDS[0].h, top: ISLANDS[0].top };
-const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(ISLANDS[0].squares.map((p, i) => [`o${i}`, cloverAt(p.x, p.y + CLOVER_ISLAND.top)]));
+let CLOVER_ISLE: IslandArt = ISLANDS[0];
+/** A point in the chosen island's picture → world. */
+const isleAt = (px: number, py: number) => cloverAt(px + (CLOVER_ISLE.left ?? 0), py + CLOVER_ISLE.top);
+let CLOVER_POINTS: Record<string, [number, number]> = {};
+/** Which painted island the 三葉草 board is (Sky 2026-10-17: 森林礦島 or 火山島); set as a scene is made. */
+function pickIsle(id?: string) {
+  CLOVER_ISLE = islandOf(id);
+  CLOVER_POINTS = Object.fromEntries(CLOVER_ISLE.squares.map((p, i) => [`o${i}`, isleAt(p.x, p.y)]));
+}
+pickIsle();
 
 type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
 type Layout = {
@@ -260,6 +270,7 @@ export function createBoardScene(
   /** see-through: no sky, fog or sea — the island floats over whatever is behind the canvas (領地 preview). */
   opts: { seeThrough?: boolean } = {},
 ): BoardScene {
+  pickIsle(decor?.isle);
   const layout = layoutFor(board);
   const seeThrough = !!opts.seeThrough;
   /** 海島 and 三葉草 share the sandy island in the sea; only 海島 has the lighthouse and pier. */
@@ -599,8 +610,8 @@ export function createBoardScene(
     if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
     if (clover) {
       // Sky's painted island is the board: one picture lying on the ground, squares and all.
-      const [x0, z0] = cloverAt(0, CLOVER_ISLAND.top), [x1, z1] = cloverAt(CLOVER_ISLAND.w, CLOVER_ISLAND.top + CLOVER_ISLAND.h);
-      const tex = new T.TextureLoader().load(CLOVER_ISLAND.url);
+      const [x0, z0] = isleAt(0, 0), [x1, z1] = isleAt(CLOVER_ISLE.w, CLOVER_ISLE.h);
+      const tex = new T.TextureLoader().load(CLOVER_ISLE.art);
       tex.encoding = T.sRGBEncoding;
       tex.anisotropy = 8;
       const art = new T.Mesh(new T.PlaneGeometry(x1 - x0, z1 - z0), new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
@@ -609,10 +620,10 @@ export function createBoardScene(
       art.renderOrder = -1;
       scene.add(art);
       // Waterfalls run in Sky's dry channels, lying on the ground like the picture.
-      const isle = ISLANDS[0];
+      const isle = CLOVER_ISLE;
       for (const f of isle.falls) {
-        const [ax, az] = cloverAt(f.x, f.y + CLOVER_ISLAND.top), [bx, bz] = cloverAt(f.x + f.w, f.y + f.h + CLOVER_ISLAND.top);
-        const t = new T.TextureLoader().load("/art/islands/water.webp");
+        const [ax, az] = isleAt(f.x, f.y), [bx, bz] = isleAt(f.x + f.w, f.y + f.h);
+        const t = new T.TextureLoader().load(isle.flow === "lava" ? "/art/islands/lava.webp" : "/art/islands/water.webp");
         t.encoding = T.sRGBEncoding;
         t.wrapS = t.wrapT = T.RepeatWrapping;
         t.repeat.set(1, (f.h / f.w) * 0.5);
@@ -640,7 +651,7 @@ export function createBoardScene(
       // 龍仔 (Sky 2026-10-17): no nest — the owner's dragon walks about the plaza and sometimes flies up to look at us.
       {
         const n = isle.nest;
-        const [x, z] = cloverAt(n.x, n.y + CLOVER_ISLAND.top);
+        const [x, z] = isleAt(n.x, n.y);
         const pet = decor?.nest?.pet ?? { element: 0, stage: 0 };
         const dragon = buildMonster(T, pet.element, pet.stage);
         dragon.setMood("rest");
@@ -665,7 +676,7 @@ export function createBoardScene(
       }
       for (const d of isle.decor) {
         const at = isle.spots[d.spot];
-        const [x, z] = cloverAt(at.x, at.y + CLOVER_ISLAND.top);
+        const [x, z] = isleAt(at.x, at.y);
         const g = new T.Group();
         g.position.set(x, TOP, z);
         g.rotation.x = -CLOVER_ELEV; // lean back to face the camera square on
@@ -970,7 +981,7 @@ export function createBoardScene(
   function makeCloverTile(key: string, x: number, z: number) {
     const square = BOARDS[board].squares[key];
     const plaza = square.kind === "plaza";
-    if (ISLANDS[0].tiles === "painted") return makePaintedTile(key, x, z, plaza);
+    if (CLOVER_ISLE.tiles === "painted") return makePaintedTile(key, x, z, plaza);
     const group = new T.Group();
     group.position.set(x, STONE_LIFT, z);
     scene.add(group);

@@ -3,6 +3,7 @@
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
 import { CAST, EightBoard, seatsFor } from "@/components/table-game";
+import { ISLANDS } from "@/lib/islands";
 import { loadNestLevel, loadPet, loadWallet, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
@@ -40,7 +41,7 @@ const LAND_ICONS: Record<LandKind, string> = { island: "island", mountain: "moun
 const LAND_NAMES: Record<LandKind, string> = { island: "海島", mountain: "山城", volcano: "火山" };
 
 function decorOf(realm: Realm): Decor {
-  return { houses: housesOf(realm), facade: false, stations: count(realm, "station"), nest: { level: loadNestLevel(), pet: loadPet() } };
+  return { houses: housesOf(realm), facade: false, stations: count(realm, "station"), nest: { level: loadNestLevel(), pet: loadPet() }, isle: realm.isle };
 }
 
 function loadRealm(): Realm {
@@ -293,6 +294,27 @@ function RealmEditor({
           >
             <p className="text-center text-lg font-black">{t("開局設定")}</p>
             <>
+              {/* Which island to play on (Sky 2026-10-17: everything open while testing). */}
+              <div className="grid grid-cols-2 gap-2" data-testid="isle-pick">
+                {ISLANDS.map((isle) => {
+                  const on = (realm.isle ?? ISLANDS[0].id) === isle.id;
+                  return (
+                    <button
+                      key={isle.id}
+                      type="button"
+                      onClick={() => onChange({ realm: { ...realm, isle: isle.id } })}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-2xl border-4 p-1.5 text-sm font-black",
+                        on ? "border-[#FBD000] bg-[#FFF8D6]" : "border-transparent bg-[#EEF2FF]",
+                      )}
+                      data-testid={`isle-${isle.id}`}
+                    >
+                      <img src={isle.art} alt="" draggable={false} className="h-12 w-9 object-contain" />
+                      {t(isle.name)}
+                    </button>
+                  );
+                })}
+              </div>
               <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-black" data-testid="realm-summary">
                 <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
                 <span>{t("每人 {n} 轉", { n: turnsOf(realm) })}</span>

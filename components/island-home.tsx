@@ -89,7 +89,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             className="absolute overflow-hidden rounded-[45%/12%]"
             style={{ left: pct(f.x, island.w), top: pct(f.y, island.h), width: pct(f.w, island.w), height: pct(f.h, island.h) }}
           >
-            <div className="absolute inset-0 animate-[water-flow_1.1s_linear_infinite] bg-[url(/art/islands/water.webp)] bg-[length:100%_96px] opacity-90 [mask-image:linear-gradient(90deg,transparent,#000_25%,#000_75%,transparent)]" />
+            <div className="absolute inset-0 animate-[water-flow_1.1s_linear_infinite] bg-[length:100%_96px] opacity-90 [mask-image:linear-gradient(90deg,transparent,#000_25%,#000_75%,transparent)]" style={{ backgroundImage: `url(/art/islands/${island.flow === "lava" ? "lava" : "water"}.webp)` }} />
             <div className="absolute inset-x-0 bottom-0 h-[10%] animate-[foam_1.2s_ease-in-out_infinite] rounded-full bg-white/80 blur-[2px]" />
           </div>
         ))}

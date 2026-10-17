@@ -14,6 +14,10 @@ export type IslandArt = {
   h: number;
   /** Where this picture was cut from Sky's original (the board's world maths uses the original's pixels). */
   top: number;
+  /** Moves the picture across so its board sits where the forest island's does (board maths only). */
+  left?: number;
+  /** What runs in the dry channels: water (default) or lava. */
+  flow?: "water" | "lava";
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -36,6 +40,8 @@ export const DECOR_DIR = "/art/islands/decor/";
  * 森林礦島 (Sky 2026-10-09: back to the drawing with painted squares, stairs and bridge — 6 squares in each of the
  * quarry, forest and mine). Plaza at the front → quarry (left) → forest (back) → mine (right).
  */
+export const islandOf = (id?: string): IslandArt => ISLANDS.find((i) => i.id === id) ?? ISLANDS[0];
+
 export const ISLANDS: IslandArt[] = [
   {
     id: "forest",
@@ -74,6 +80,32 @@ export const ISLANDS: IslandArt[] = [
       { x: 110, y: 110, kind: "sky" },
       { x: 830, y: 110, kind: "sky" },
     ],
+    decor: [],
+  },
+  // 火山島 (Sky 2026-10-17): 燒焦森林 (left), 火山口 (back, across the chain bridge), 鐵匠鋪 (right). Sky's
+  // picture shrunk to 76% so its squares are the forest island's size; the lava in the channels is code.
+  {
+    id: "volcano",
+    name: "火山島",
+    art: "/art/islands/volcano.webp",
+    w: 778,
+    h: 1167,
+    top: 215,
+    left: 86,
+    flow: "lava",
+    tiles: "painted",
+    squares: [
+      { x: 388, y: 730 },
+      { x: 235, y: 644 }, { x: 193, y: 587 }, { x: 206, y: 524 }, { x: 240, y: 452 }, { x: 239, y: 391 }, { x: 209, y: 332 },
+      { x: 216, y: 246 }, { x: 282, y: 255 }, { x: 351, y: 261 }, { x: 424, y: 262 }, { x: 494, y: 257 }, { x: 561, y: 246 },
+      { x: 560, y: 332 }, { x: 533, y: 391 }, { x: 533, y: 452 }, { x: 569, y: 525 }, { x: 584, y: 587 }, { x: 541, y: 644 },
+    ],
+    nest: { x: 388, y: 711, w: 170 },
+    falls: [
+      { x: 72, y: 618, w: 20, h: 166 },
+      { x: 688, y: 618, w: 20, h: 166 },
+    ],
+    spots: [],
     decor: [],
   },
 ];

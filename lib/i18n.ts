@@ -204,6 +204,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "全部對手被吸走，送返起點": { hans: "全部对手被吸走，送回起点", en: "All rivals are sucked back to start" },
   "下一次擲骰，行過嘅冇人地全部變你嘅": { hans: "下一次掷骰，走过的无人地全部变你的", en: "Next roll: every unowned lot you pass becomes yours" },
   "全部對手結冰，停一轉": { hans: "全部对手结冰，停一轮", en: "All rivals freeze for one turn" },
+  "火山島": { hans: "火山岛", en: "Volcano Isle" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

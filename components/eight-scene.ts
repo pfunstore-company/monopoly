@@ -2206,6 +2206,9 @@ export function createBoardScene(
     clear(key) {
       const tile = tiles[key];
       if (!tile) return;
+      // A lot that goes back to nobody loses its 封地 chains too.
+      const chains = tile.group.getObjectByName("lock");
+      if (chains) tile.group.remove(chains);
       if (tile.house) tile.group.remove(tile.house);
       tile.house = null;
       tile.body.material.color.setHex(tile.base);

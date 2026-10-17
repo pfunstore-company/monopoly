@@ -909,8 +909,8 @@ function opponents(state: TableState, seat: number): number[] {
 }
 
 /** The opponent lot a lock or wreck goes for: highest level, then dearest rent. */
-export function bestTarget(state: TableState, seat: number): string | null {
-  const theirs = Object.entries(state.deeds).filter(([, d]) => d.owner !== seat && !state.seats[d.owner]?.bankrupt);
+export function bestTarget(state: TableState, seat: number, unlockedOnly = false): string | null {
+  const theirs = Object.entries(state.deeds).filter(([, d]) => d.owner !== seat && !state.seats[d.owner]?.bankrupt && !(unlockedOnly && d.locked));
   if (theirs.length === 0) return null;
   theirs.sort(([ka, a], [kb, b]) => b.level - a.level || rentOf(kb, b.level, state.board) - rentOf(ka, a.level, state.board) || (ka < kb ? -1 : 1));
   return theirs[0][0];
@@ -927,10 +927,8 @@ export function canPlay(state: TableState, seat: number, power: Power): boolean 
   if (power === "swap" || power === "monster") return opponents(state, seat).length > 0;
   if (power === "levy") return opponents(state, seat).some((other) => state.seats[other].cash > 0);
   if (power === "double") return !state.seats[seat].doubleRent && Object.values(state.deeds).some((d) => d.owner === seat);
-  if (power === "lock") {
-    const key = bestTarget(state, seat);
-    return key !== null && !state.deeds[key].locked;
-  }
+  // 封地 goes for the best lot that isn't locked already, so the same lot isn't kept chained all game.
+  if (power === "lock") return bestTarget(state, seat, true) !== null;
   return bestTarget(state, seat) !== null;
 }
 
@@ -1013,7 +1011,7 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
     return withSeat(state, seat, { ...hand, doubleRent: alive(state).length * 2 });
   }
   if (power === "lock" || power === "wreck") {
-    const key = bestTarget(state, seat)!;
+    const key = bestTarget(state, seat, power === "lock")!;
     const deed = state.deeds[key];
     const deeds = { ...state.deeds };
     if (power === "lock") {

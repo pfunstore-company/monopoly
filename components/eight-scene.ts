@@ -1610,9 +1610,20 @@ export function createBoardScene(
   const dice = [0, 1].map(() => {
     const d = shadowy(new T.Mesh(new T.BoxGeometry(0.6, 0.6, 0.6), dieMats));
     d.visible = false;
+    // 領地 (Sky 2026-10-18): the die floats over the thrower's head, drawn over the tall buildings.
+    if (clover) {
+      d.renderOrder = 20;
+      d.castShadow = false;
+      d.scale.setScalar(1.35);
+    }
     scene.add(d);
     return d;
   });
+  if (clover)
+    for (const m of dieMats) {
+      m.depthTest = false;
+      m.transparent = true; // drawn with the see-through things, so its renderOrder puts it last
+    }
   // Firework sparks and gold twinkles.
   const sparkGeo = new T.SphereGeometry(0.07, 6, 4);
   const starGeo = new T.OctahedronGeometry(0.09);
@@ -2092,14 +2103,16 @@ export function createBoardScene(
       const base = tokens[seat].position;
       if (which === 0) dice[1].visible = false;
       // Both dice sit in front of whoever is throwing; the first one follows them to the new square.
-      dice.forEach((d, i) => d.position.set(base.x + (i ? 0.45 : -0.45), i === which ? 2.5 : TOP + 0.3, base.z + 1.1));
+      const rest = clover ? TOP + 2.4 : TOP + 0.3;
+      if (clover) dice[which].position.set(base.x, rest + 2, base.z);
+      else dice.forEach((d, i) => d.position.set(base.x + (i ? 0.45 : -0.45), i === which ? 2.5 : TOP + 0.3, base.z + 1.1));
       const d = dice[which];
       const spin = [Math.random() * 8 + 6, Math.random() * 8 + 6, Math.random() * 8 + 6];
       d.visible = true;
       await tween(650, (k) => {
         d.rotation.set(spin[0] * (1 - k), spin[1] * (1 - k), spin[2] * (1 - k));
         if (k === 1) d.rotation.set(...UP[value]);
-        d.position.y = TOP + 0.3 + Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * 2;
+        d.position.y = rest + Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * (clover ? 1.2 : 2);
       });
     },
     hideDice() {

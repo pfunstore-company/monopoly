@@ -206,6 +206,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "全部對手結冰，停一轉": { hans: "全部对手结冰，停一轮", en: "All rivals freeze for one turn" },
   "火山島": { hans: "火山岛", en: "Volcano Isle" },
   "溫泉島": { hans: "温泉岛", en: "Hot Spring Isle" },
+  "雪嶺島": { hans: "雪岭岛", en: "Snowridge Isle" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

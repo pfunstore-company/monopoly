@@ -148,4 +148,25 @@ export const ISLANDS: IslandArt[] = [
     spots: [],
     decor: [],
   },
+  // 雪嶺島 (Sky 2026-10-18): 草原 (left), 草地後排 (back, over two stone bridges), 雪坡 (right). Picture at 66% (a little bigger than the others: its board fills more of the picture).
+  {
+    id: "snow",
+    name: "雪嶺島",
+    art: "/art/islands/snow.webp",
+    w: 676,
+    h: 1014,
+    top: 297,
+    left: 135,
+    tiles: "painted",
+    squares: [
+      { x: 336, y: 723 },
+      { x: 163, y: 614 }, { x: 142, y: 539 }, { x: 135, y: 459 }, { x: 129, y: 385 }, { x: 170, y: 313 }, { x: 134, y: 249 },
+      { x: 113, y: 178 }, { x: 187, y: 119 }, { x: 281, y: 89 }, { x: 390, y: 89 }, { x: 487, y: 119 }, { x: 561, y: 178 },
+      { x: 539, y: 251 }, { x: 511, y: 316 }, { x: 552, y: 385 }, { x: 538, y: 459 }, { x: 533, y: 539 }, { x: 513, y: 613 },
+    ],
+    nest: { x: 336, y: 716, w: 158 },
+    falls: [],
+    spots: [],
+    decor: [],
+  },
 ];

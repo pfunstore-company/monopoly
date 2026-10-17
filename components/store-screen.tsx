@@ -7,25 +7,27 @@ import { juice } from "@/components/juice";
 import { loadCollection, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
-import { MATERIALS, addStock, type BuildingKind, type Wallet } from "@/lib/realm";
+import { NO_STOCK, type Wallet } from "@/lib/realm";
 import { dayKeyOf } from "@/lib/rules";
 import { play } from "@/lib/sfx";
 import {
   AD_ENERGY,
-  AD_MATERIALS,
   ADS_PER_DAY,
   DUPLICATE_SHARDS,
   HEROES,
-  HOUSES,
-  MATERIAL_BUNDLES,
+  MAX_SPECIALS,
   MONTH_CARD,
   ODDS,
   PACKS,
   PITY,
   PULL_PRICE,
   RARITIES,
+  SPECIALS,
   TEN_PRICE,
   addDays,
+  addSpecial,
+  convertMaterials,
+  randomSpecial,
   adsLeft,
   dealsOf,
   draw,
@@ -39,15 +41,13 @@ import {
 } from "@/lib/shop";
 import { cn } from "cn";
 
-type Tab = "draw" | "energy" | "materials" | "deals";
+// Sky (2026-10-17): no 材料 tab; 房屋 became 特別卡.
+type Tab = "draw" | "energy" | "deals";
 const TABS: [Tab, string][] = [
   ["draw", "抽卡"],
   ["energy", "能量"],
-  ["materials", "材料"],
   ["deals", "精選"],
 ];
-const HOUSE_NAMES: Record<BuildingKind, string> = { table: "加枱", rent: "租金屋", station: "車站" };
-const MAT_NAMES = { wood: "木材", stone: "石磚", gold: "金塊" } as const;
 const RARITY_STYLE: Record<Rarity, string> = {
   SSR: "bg-gradient-to-b from-[#FFE27A] to-[#F59E0B] text-[#7C2D12] border-[#FBD000]",
   SR: "bg-gradient-to-b from-[#E9D5FF] to-[#A855F7] text-white border-[#C084FC]",
@@ -66,16 +66,24 @@ function PrizePic({ prize, className }: { prize: Prize; className?: string }) {
       <span className={cn("flex items-center justify-center rounded-full border-2 border-white bg-[#1E293B] text-3xl", className)}>{hero.emoji}</span>
     );
   }
-  if (prize.kind === "house") return <img src={`/art/realm/${prize.id}.webp`} alt="" className={cn("object-contain", className)} />;
-  return <img src="/art/realm/wood.webp" alt="" className={cn("object-contain", className)} />;
+  if (prize.kind === "special") return <SpecialPic id={prize.id} className={className} />;
+  return <span className={cn("flex items-center justify-center rounded-full bg-[#E0E7FF] text-2xl", className)}>🧩</span>;
+}
+
+/** A 特別卡's face: a dark gold-edged card with its emoji (until Sky's card art comes). */
+export function SpecialPic({ id, className }: { id: string; className?: string }) {
+  const card = SPECIALS.find((c) => c.id === id);
+  return (
+    <span className={cn("flex items-center justify-center rounded-lg border-2 border-[#FBD000] bg-gradient-to-b from-[#3B0764] to-[#0F172A] text-3xl shadow-[0_0_10px_rgba(251,208,0,0.5)]", className)}>
+      {card?.emoji ?? "✨"}
+    </span>
+  );
 }
 
 function prizeName(prize: Prize, t: (s: string, v?: Record<string, string | number>) => string): string {
   if (prize.kind === "hero") return t(HEROES.find((h) => h.id === prize.id)!.name);
-  if (prize.kind === "house") return t("{name}券", { name: t(HOUSE_NAMES[prize.id]) });
-  return MATERIALS.filter((m) => prize.stock[m] > 0)
-    .map((m) => `${t(MAT_NAMES[m])}×${prize.stock[m]}`)
-    .join(" ");
+  if (prize.kind === "special") return t(SPECIALS.find((c) => c.id === prize.id)!.name);
+  return t("碎片 ×{n}", { n: prize.n });
 }
 
 /**
@@ -94,8 +102,19 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
   const [note, setNote] = useState("");
   useEffect(() => {
     const id = window.setTimeout(() => {
+      // Sky (2026-10-17): the old materials turn into 特別卡 the first time the shop opens.
+      const w = loadWallet();
+      const out = convertMaterials(loadCollection(), w.stock, Math.random);
+      if (out.collection !== loadCollection()) {
+        saveCollection(out.collection);
+        if (out.cards > 0) {
+          saveWallet({ ...w, stock: { ...NO_STOCK } });
+          setNote(t("舊材料換咗 {n} 張特別卡", { n: out.cards }));
+          window.setTimeout(() => setNote(""), 2500);
+        }
+      }
       setWallet(loadWallet());
-      setCol(loadCollection());
+      setCol(out.collection);
       setLoaded(true);
     }, 0);
     return () => window.clearTimeout(id);
@@ -130,30 +149,30 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
     const paid = spend(times === 10 ? TEN_PRICE : PULL_PRICE);
     if (!paid) return;
     const out = draw(col, pool, times, Math.random);
-    save({ wallet: addStock(paid, out.materials), col: out.collection });
+    save({ wallet: paid, col: out.collection });
     const best = out.pulls.some((p) => p.rarity === "SSR") ? "large" : out.pulls.some((p) => p.rarity === "SR") ? "medium" : "small";
     juice(best, undefined, window.innerHeight * 0.4);
     play(best === "small" ? "coin" : "chest");
     setResult(out.pulls);
   }
 
-  function freeAd(kind: "energy" | "materials") {
+  function freeAd() {
     const counted = watchAd(col, day);
     if (!counted) return;
     setAd(() => () => {
       const w = loadWallet();
-      const next = kind === "energy" ? { ...w, points: w.points + AD_ENERGY } : addStock(w, AD_MATERIALS);
-      save({ wallet: next, col: counted });
+      save({ wallet: { ...w, points: w.points + AD_ENERGY }, col: counted });
       play("coin");
-      flash(kind === "energy" ? t("+{n} 能量", { n: E(AD_ENERGY) }) : t("攞到材料"));
+      flash(t("+{n} 能量", { n: E(AD_ENERGY) }));
     });
   }
 
   function buyPack(id: string) {
     const pack = PACKS.find((p) => p.id === id)!;
     if (pack.once && col.starter) return;
-    const next = addStock({ ...wallet, points: wallet.points + pack.energy }, { wood: 0, stone: 0, gold: pack.gold });
-    save({ wallet: next, col: pack.once ? { ...col, starter: true } : undefined });
+    let nextCol = pack.once ? { ...col, starter: true } : col;
+    for (let k = 0; k < pack.specials; k++) nextCol = addSpecial(nextCol, randomSpecial(Math.random()));
+    save({ wallet: { ...wallet, points: wallet.points + pack.energy }, col: nextCol });
     juice("medium", undefined, window.innerHeight * 0.4);
     play("chest");
     flash(t("（測試）已加 {n} 能量", { n: E(pack.energy) }));
@@ -173,14 +192,6 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
     flash(t("+{n} 能量", { n: E(MONTH_CARD.daily) }));
   }
 
-  function buyBundle(id: string) {
-    const b = MATERIAL_BUNDLES.find((x) => x.id === id)!;
-    const paid = spend(b.price);
-    if (!paid) return;
-    save({ wallet: addStock(paid, b.stock) });
-    play("coin");
-  }
-
   const deals = dealsOf(day);
   const boughtDeals = col.deals.day === day ? col.deals.bought : [];
   function buyDeal(id: string) {
@@ -188,11 +199,11 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
     if (boughtDeals.includes(id)) return;
     const paid = spend(deal.price);
     if (!paid) return;
-    let next: Collection = { ...col, heroes: { ...col.heroes }, vouchers: { ...col.vouchers }, deals: { day, bought: [...boughtDeals, id] } };
+    let next: Collection = { ...col, heroes: { ...col.heroes }, deals: { day, bought: [...boughtDeals, id] } };
     if (deal.prize.kind === "hero") {
       if ((next.heroes[deal.prize.id] ?? 0) > 0) next = { ...next, shards: next.shards + DUPLICATE_SHARDS };
       next.heroes[deal.prize.id] = (next.heroes[deal.prize.id] ?? 0) + 1;
-    } else if (deal.prize.kind === "house") next.vouchers[deal.prize.id] = (next.vouchers[deal.prize.id] ?? 0) + 1;
+    } else if (deal.prize.kind === "special") next = addSpecial(next, deal.prize.id);
     save({ wallet: paid, col: next });
     play("chest");
   }
@@ -212,30 +223,15 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
           {loaded ? E(wallet.points) : "…"}
         </div>
       </header>
-      <div className="mt-1 flex justify-center gap-2 px-3 text-xs font-black text-white/80">
-        {MATERIALS.map((m) => (
-          <span key={m} className="inline-flex items-center gap-0.5">
-            <img src={`/art/realm/${m}.webp`} alt="" className="size-5 object-contain" />
-            {wallet.stock[m]}
-          </span>
-        ))}
-      </div>
-
       {/* Free claims for an ad (Sky 2026-10-08: 14 a day, shared with the board's 雙倍). */}
       <section className="mx-3 mt-2 rounded-2xl border-2 border-[#FBD000]/70 bg-[#7C3AED]/60 p-2" data-testid="free-ads">
         <p className="text-center text-xs font-black">{t("📺 睇廣告免費領（今日仲有 {n}／{total} 次）", { n: left, total: ADS_PER_DAY })}</p>
-        <div className="mt-1.5 grid grid-cols-2 gap-2">
-          <button type="button" disabled={left <= 0} onClick={() => freeAd("energy")} className={buyBtn} data-testid="ad-energy">
-            <img src={ENERGY_ICON} alt="" className="size-5" /> +{E(AD_ENERGY)}
-          </button>
-          <button type="button" disabled={left <= 0} onClick={() => freeAd("materials")} className={buyBtn} data-testid="ad-materials">
-            <img src="/art/realm/wood.webp" alt="" className="size-5" />+{AD_MATERIALS.wood}
-            <img src="/art/realm/stone.webp" alt="" className="size-5" />+{AD_MATERIALS.stone}
-          </button>
-        </div>
+        <button type="button" disabled={left <= 0} onClick={freeAd} className={cn(buyBtn, "mt-1.5")} data-testid="ad-energy">
+          <img src={ENERGY_ICON} alt="" className="size-5" /> +{E(AD_ENERGY)}
+        </button>
       </section>
 
-      <nav className="mx-3 mt-2 grid grid-cols-4 gap-1">
+      <nav className="mx-3 mt-2 grid grid-cols-3 gap-1">
         {TABS.map(([id, name]) => (
           <button
             key={id}
@@ -252,24 +248,26 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),1rem)]">
         {tab === "draw" ? (
           <div className="space-y-3">
-            {(["hero", "house"] as PoolId[]).map((pool) => (
+            {(["hero", "special"] as PoolId[]).map((pool) => (
               <section key={pool} className={card} data-testid={`pool-${pool}`}>
                 <div className="flex items-center justify-between">
-                  <p className="text-lg font-black">{pool === "hero" ? t("角色卡池") : t("房屋卡池")}</p>
+                  <p className="text-lg font-black">{pool === "hero" ? t("角色卡池") : t("特別卡池")}</p>
                   <button type="button" onClick={() => setOdds(true)} className="cursor-pointer rounded-full bg-[#E0E7FF] px-2 py-0.5 text-xs font-black">
                     {t("機率")}
                   </button>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  {(pool === "hero" ? HEROES.map((h) => ({ prize: { kind: "hero", id: h.id } as Prize, rarity: h.rarity })) : HOUSES.map((h) => ({ prize: { kind: "house", id: h.id } as Prize, rarity: h.rarity }))).map(({ prize, rarity }) => (
-                    <span key={prize.kind === "materials" ? "m" : prize.id} className={cn("relative flex size-12 items-center justify-center rounded-xl border-2", RARITY_STYLE[rarity])}>
+                  {(pool === "hero" ? HEROES.map((h) => ({ prize: { kind: "hero", id: h.id } as Prize, rarity: h.rarity })) : SPECIALS.map((c) => ({ prize: { kind: "special", id: c.id } as Prize, rarity: "SSR" as Rarity }))).map(({ prize, rarity }) => (
+                    <span key={prize.kind === "shards" ? "s" : prize.id} className={cn("relative flex size-12 items-center justify-center rounded-xl border-2", RARITY_STYLE[rarity])}>
                       <PrizePic prize={prize} className="size-10" />
                       <span className="absolute -bottom-1.5 rounded-full bg-black/60 px-1 text-[9px] font-black text-white">{rarity}</span>
                     </span>
                   ))}
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-[#475569]">
-                  {t("保底：{n} 抽內必有 SSR（已抽 {m}）", { n: PITY, m: col.sinceSSR[pool] })}
+                  {pool === "hero"
+                    ? t("保底：{n} 抽內必有 SSR（已抽 {m}）", { n: PITY, m: col.sinceSSR.hero })
+                    : t("每抽必得一張特別卡，只喺領地用，每局最多帶 {n} 張", { n: MAX_SPECIALS })}
                 </p>
                 <div className="mt-1 grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => pull(pool, 1)} className={buyBtn} data-testid={`pull1-${pool}`}>
@@ -294,15 +292,15 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                 ))}
               </div>
               <p className="mt-2 text-xs font-black">{t("碎片 {n}", { n: col.shards })}</p>
-              <div className="mt-1 flex flex-wrap gap-2 text-xs font-black">
-                {HOUSES.map((h) => (
-                  <span key={h.id} className={cn("inline-flex items-center gap-0.5", !col.vouchers[h.id] && "opacity-40")}>
-                    <img src={`/art/realm/${h.id}.webp`} alt="" className="size-6 object-contain" />
-                    {t("{name}券", { name: t(HOUSE_NAMES[h.id]) })}×{col.vouchers[h.id] ?? 0}
+              <div className="mt-1 flex flex-wrap gap-2 text-xs font-black" data-testid="special-cards">
+                {SPECIALS.map((c) => (
+                  <span key={c.id} className={cn("inline-flex items-center gap-1", !col.specials[c.id] && "opacity-40")}>
+                    <SpecialPic id={c.id} className="size-7 text-base" />
+                    {t(c.name)}×{col.specials[c.id] ?? 0}
                   </span>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] font-bold text-[#475569]">{t("房屋券可以喺領地免材料起嗰間屋")}</p>
+              <p className="mt-1 text-[11px] font-bold text-[#475569]">{t("特別卡只喺領地用得，開局前揀最多 {n} 張帶入場", { n: MAX_SPECIALS })}</p>
             </section>
           </div>
         ) : null}
@@ -319,7 +317,7 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                     <p className="font-black">{t(pack.name)}{pack.once ? <span className="ml-1 rounded-full bg-[#E52521] px-1.5 text-[10px] text-white">{t("限買一次")}</span> : null}</p>
                     <p className="text-sm font-bold">
                       {E(pack.energy)} {t("能量")}
-                      {pack.gold ? ` + ${t("金塊")}×${pack.gold}` : ""}
+                      {pack.specials ? ` + ${t("特別卡")}×${pack.specials}` : ""}
                     </p>
                   </div>
                   <button type="button" disabled={!!done} onClick={() => buyPack(pack.id)} className={cn(buyBtn, "mt-0 w-24")}>
@@ -346,26 +344,6 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                 ) : null}
               </div>
             </section>
-          </div>
-        ) : null}
-
-        {tab === "materials" ? (
-          <div className="space-y-2">
-            {MATERIAL_BUNDLES.map((b) => {
-              const m = MATERIALS.find((x) => b.stock[x] > 0)!;
-              return (
-                <section key={b.id} className={cn(card, "flex items-center gap-3")}>
-                  <img src={`/art/realm/${m}.webp`} alt="" className="size-12 object-contain" />
-                  <p className="flex-1 font-black">
-                    {t(MAT_NAMES[m])} ×{b.stock[m]}
-                  </p>
-                  <button type="button" onClick={() => buyBundle(b.id)} className={cn(buyBtn, "mt-0 w-28")}>
-                    <img src={ENERGY_ICON} alt="" className="size-5" />
-                    {E(b.price)}
-                  </button>
-                </section>
-              );
-            })}
           </div>
         ) : null}
 
@@ -436,8 +414,9 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                 ))}
               </tbody>
             </table>
-            <p className="mt-2 text-xs font-bold text-[#475569]">{t("N 係材料；十連抽保證最少一個 SR 或以上；連續 {n} 抽冇 SSR，第 {n} 抽必定係 SSR。", { n: PITY })}</p>
+            <p className="mt-2 text-xs font-bold text-[#475569]">{t("角色卡池：N 係碎片；十連抽保證最少一個 SR 或以上；連續 {n} 抽冇 SSR，第 {n} 抽必定係 SSR。", { n: PITY })}</p>
             <p className="mt-1 text-xs font-bold text-[#475569]">{t("同一等級入面每樣嘢機會均等。")}</p>
+            <p className="mt-1 text-xs font-bold text-[#475569]">{t("特別卡池：每抽必得一張特別卡，五款各 20%。")}</p>
           </div>
         </div>
       ) : null}

@@ -3,7 +3,7 @@
 import { juice } from "@/components/juice";
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { ENERGY_ICON, compactEnergy, formatEnergy, tableEnergy } from "@/lib/energy";
-import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
+import { CHARACTERS, PERKS, savePick, savedPick } from "@/lib/characters";
 import {
   BOARDS,
   BUY_RESERVE,
@@ -29,9 +29,9 @@ import {
   type TableRules,
   type TableState,
 } from "@/lib/eight";
-import { LAND_TAX, hostReport, tableReward, type Realm, type Stock } from "@/lib/realm";
-import { addStock } from "@/lib/realm";
-import { loadWallet, saveWallet } from "@/components/wallet-store";
+import { LAND_TAX, hostReport, type Realm } from "@/lib/realm";
+import { SPECIALS, addSpecial, randomSpecial, type SpecialId } from "@/lib/shop";
+import { loadCollection, saveCollection } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
 import { setTrack } from "@/lib/music";
 import { play } from "@/lib/sfx";
@@ -67,7 +67,7 @@ const EMOJI: Record<string, string> = {};
  * players get the others (with real players later, a character someone has taken is greyed out).
  */
 /** You as the character you picked, then the computer players as the characters left over. */
-function seatsFor(pick: number, opponents: number): Player[] {
+export function seatsFor(pick: number, opponents: number): Player[] {
   const mine = CHARACTERS[pick] ?? CHARACTERS[0];
   const rest = CHARACTERS.filter((_, i) => i !== pick).map((c) => ({ ...c, bot: true }));
   return [{ name: "你", avatar: mine.avatar, colour: mine.colour, bot: false }, ...rest].slice(0, opponents + 1);
@@ -227,7 +227,7 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
               {/* The one you picked is bigger, with a gold glow round it; no box (Sky 2026-10-01). */}
               <Face
                 seat={c}
-                className={cn("size-14 border-[3px]", pick === i && "shadow-[0_0_0_3px_#FBD000,0_0_22px_8px_rgba(251,208,0,0.7)]")}
+                className={cn("size-12 border-[3px]", pick === i && "shadow-[0_0_0_3px_#FBD000,0_0_22px_8px_rgba(251,208,0,0.7)]")}
               />
               <span
                 className={cn(
@@ -238,6 +238,7 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
                 {t(c.name)}
               </span>
               {pick === i ? <span className="text-[10px] font-black text-[#FFE066] [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t("你揀咗")}</span> : null}
+              {PERKS[c.actor] ? <span className="text-center text-[9px] font-bold leading-tight text-white/90 [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t(PERKS[c.actor])}</span> : null}
             </button>
           ))}
         </div>
@@ -340,7 +341,7 @@ export function EightBoard({
   }, []);
   const [table, setTable] = useState<TableState>(() => newTable(players, rules, board));
   const publicTable = !realm && guestTicket === undefined;
-  const [reward, setReward] = useState<Stock | null>(null);
+  const [reward, setReward] = useState<SpecialId | null>(null);
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
@@ -821,25 +822,16 @@ export function EightBoard({
     return () => window.clearInterval(id);
   }, [waiting, table.tick, run]);
 
-  // Public table: your finish pays materials for your 領地 (private-land games pay none).
+  // Public table (Sky 2026-10-17): materials are gone; first place wins one 特別卡 for the 領地 games.
   const awarded = useRef(false);
-  // 三葉草: what was gathered goes home — a guest keeps their own haul; the host gets what the 山賊 took.
-  useEffect(() => {
-    if (table.board !== "clover" || table.phase !== "over" || awarded.current) return;
-    const gain: Stock | undefined = realm ? table.hostStock : guestTicket !== undefined && !table.seats[0]?.bot ? table.seats[0]?.stock : undefined;
-    if (!gain) return;
-    awarded.current = true;
-    saveWallet(addStock(loadWallet(), gain));
-    const id = window.setTimeout(() => setReward(gain), 0);
-    return () => window.clearTimeout(id);
-  }, [table, realm, guestTicket]);
   useEffect(() => {
     if (!publicTable || table.phase !== "over" || awarded.current || table.seats[0]?.bot) return;
     awarded.current = true;
-    const gain = tableReward(standings(table).indexOf(0), table.seats.length);
-    saveWallet(addStock(loadWallet(), gain));
-    const id = window.setTimeout(() => setReward(gain), 0);
-    return () => window.clearTimeout(id);
+    if (standings(table).indexOf(0) !== 0) return;
+    const id = randomSpecial(Math.random());
+    saveCollection(addSpecial(loadCollection(), id));
+    const timer = window.setTimeout(() => setReward(id), 0);
+    return () => window.clearTimeout(timer);
   }, [publicTable, table]);
 
   // + / − on a player's card each time their 能量 changes (Sky 2026-10-09).
@@ -939,18 +931,6 @@ export function EightBoard({
                 <Energy />
                 {compactEnergy(tableEnergy(seat.cash), lang)}
               </span>
-              {/* 三葉草: materials gathered instead of land. */}
-              {seat.stock ? (
-                <span className="flex items-center gap-1 text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`stock-${index}`}>
-                  {(["wood", "stone", "gold"] as const).map((m) => (
-                    <span key={m} className="inline-flex items-center">
-                      <img src={`/art/realm/${m}.webp`} alt="" className="size-3.5 object-contain" />
-                      {seat.stock![m]}
-                    </span>
-                  ))}
-                  {seat.maps ? <span>🗺️{seat.maps}</span> : null}
-                </span>
-              ) : null}
               {/* How much land and how many building levels they hold. */}
               {<span className="text-[9px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
                 {table.board === "clover" ? t("地 {l}・升級 {b}", { l: holdings[index].lots, b: holdings[index].levels }) : t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
@@ -1204,13 +1184,7 @@ export function EightBoard({
             ) : null}
             {reward ? (
               <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[#FFF8D6] p-2 text-sm font-black" data-testid="table-reward">
-                {t("材料獎勵：")}
-                {(["wood", "stone", "gold"] as const).map((m) => (
-                  <span key={m} className="inline-flex items-center">
-                    <img src={`/art/realm/${m}.webp`} alt="" className="size-7 object-contain" />
-                    {reward[m]}
-                  </span>
-                ))}
+                {t("第一名獎勵：特別卡")} {SPECIALS.find((c) => c.id === reward)?.emoji} {t(SPECIALS.find((c) => c.id === reward)?.name ?? "")}
               </p>
             ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">

@@ -253,7 +253,20 @@ export type Seat = {
   stock?: MaterialStock;
   maps?: number;
   artisan?: boolean;
+  /** 角色能力 (Sky 2026-10-17): used once this game (阿科's half rent, 阿神's extra roll). */
+  perkUsed?: boolean;
 };
+
+/**
+ * 角色能力 (Sky 2026-10-17), on every table: 阿瓜 (pumpkin) gets 20% more passing start, 阿科 (franken) pays
+ * half his first rent, 阿神 (reaper) rolls again once when a die shows 6. The R characters have none.
+ */
+export type Hero = "pumpkin" | "franken" | "reaper";
+export function heroOf(seat: { avatar: string }): Hero | null {
+  const key = /avatars\/(\w+)\./.exec(seat.avatar)?.[1];
+  return key === "pumpkin" || key === "franken" || key === "reaper" ? key : null;
+}
+export const PUMPKIN_START = 1.2;
 
 /** `locked`: turns left (anyone's) during which the lot collects no rent — a 封地 card. */
 export type Deed = { owner: number; level: number; locked?: number };
@@ -319,6 +332,7 @@ export type TablePhase = "roll" | "fork" | "over";
 /** What just happened, in order, for the screen to play back. */
 export type TableEvent =
   | { kind: "turn"; seat: number }
+  | { kind: "again"; seat: number }
   | { kind: "freed"; seat: number }
   | { kind: "step"; seat: number; to: Spot; passedStart: boolean }
   | { kind: "fork"; seat: number }
@@ -520,7 +534,8 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const passedStart = to.on === "loop" && to.i === 0;
   // (On 三葉草 that's once a lap, at the start of the forest loop.)
   events.push({ kind: "step", seat, to, passedStart });
-  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? START_PAY : 0) });
+  const startPay = START_PAY * (heroOf(player) === "pumpkin" ? PUMPKIN_START : 1);
+  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0) });
   return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
 }
 
@@ -600,9 +615,13 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         events.push({ kind: "shielded", seat, to: deed.owner, key });
         return withSeat(state, seat, { powers: player.powers.filter((_, i) => i !== shield) });
       }
-      const rent = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1);
+      const full = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1);
+      // 阿科: the first rent of the game is halved.
+      const halve = heroOf(player) === "franken" && !player.perkUsed;
+      const rent = halve ? full / 2 : full;
+      const payer = halve ? withSeat(state, seat, { perkUsed: true }) : state;
       events.push({ kind: "rent", seat, to: deed.owner, amount: Math.min(rent, player.cash), key });
-      return pay(state, seat, rent, deed.owner, events);
+      return pay(payer, seat, rent, deed.owner, events);
     }
     case "chest": {
       const carded = drawPower(state, seat, CHEST_POWER_ODDS, events);
@@ -721,6 +740,12 @@ function addMaterial(stock: MaterialStock | undefined, material: Material, amoun
 
 /** Hand the turn to the next seat still playing, or finish the game. */
 function finishTurn(state: TableState, events: TableEvent[]): TableState {
+  // 阿神: once a game, a 6 means another roll before the turn ends.
+  const me = state.seats[state.current];
+  if (me && heroOf(me) === "reaper" && !me.perkUsed && !me.bankrupt && !me.jailed && state.lastDice?.includes(6) && !isOver(state)) {
+    events.push({ kind: "again", seat: state.current });
+    return { ...withSeat(state, state.current, { perkUsed: true }), phase: "roll", stepsLeft: 0 };
+  }
   // Locks count down one per turn played.
   let deeds = state.deeds;
   for (const [key, deed] of Object.entries(state.deeds)) {

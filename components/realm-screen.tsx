@@ -2,10 +2,11 @@
 
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
-import { CAST, EightBoard } from "@/components/table-game";
+import { CAST, EightBoard, seatsFor } from "@/components/table-game";
 import { loadNestLevel, loadPet, loadWallet, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
+import { CHARACTERS, PERKS, savePick, savedPick } from "@/lib/characters";
 import {
   LISTINGS,
   MAX_PLAYERS,
@@ -59,7 +60,7 @@ function saveRealm(realm: Realm) {
   }
 }
 
-type Game = { id: number; kind: "host" } | { id: number; kind: "guest"; listing: Listing };
+type Game = { id: number; kind: "host" } | { id: number; kind: "guest"; listing: Listing; pick: number };
 
 /** 第三層 領地 (practice): the list of lands to visit, and your own land (empty until you buy one). */
 export function RealmScreen({ onExit }: { onExit: () => void }) {
@@ -68,6 +69,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
   const [wallet, setWallet] = useState<Wallet>({ points: 0, stock: { wood: 0, stone: 0, gold: 0 } });
   const [tab, setTab] = useState<"list" | "mine">("mine");
   const [game, setGame] = useState<Game | null>(null);
+  const [picking, setPicking] = useState<Listing | null>(null);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -107,7 +109,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
     return (
       <EightBoard
         key={game.id}
-        players={CAST.slice(0, land.minPlayers)}
+        players={seatsFor(game.pick, land.minPlayers - 1)}
         board={boardOf(land)}
         rules={rulesOf(land)}
         decor={decorOf(land)}
@@ -118,11 +120,17 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
     );
   }
 
+  // Visiting someone's land (Sky 2026-10-17): pick your character first, then pay the ticket and play.
   const join = (listing: Listing) => {
     if (wallet.points < listing.realm.ticket) return;
+    setPicking(listing);
+  };
+  const enter = (listing: Listing, pick: number) => {
     play("coin");
+    savePick(pick);
     update({ wallet: { ...wallet, points: wallet.points - listing.realm.ticket } });
-    setGame({ id: Date.now(), kind: "guest", listing });
+    setPicking(null);
+    setGame({ id: Date.now(), kind: "guest", listing, pick });
   };
 
   return (
@@ -174,6 +182,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
       ) : (
         <RealmEditor realm={realm} onChange={update} onHost={() => setGame({ id: Date.now(), kind: "host" })} />
       )}
+      {picking ? <CharacterPick onPick={(pick) => enter(picking, pick)} onClose={() => setPicking(null)} /> : null}
     </main>
   );
 }
@@ -361,6 +370,50 @@ function Stepper({
         </button>
       </div>
       <p className="text-[10px] font-bold text-[#3B5BA9]">{note}</p>
+    </div>
+  );
+}
+
+/** 揀角色 before playing on someone's land (testing: every character can be picked). */
+function CharacterPick({ onPick, onClose }: { onPick: (pick: number) => void; onClose: () => void }) {
+  const { t } = useLang();
+  const [pick, setPick] = useState(0);
+  useEffect(() => {
+    const id = window.setTimeout(() => setPick(savedPick()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  return (
+    <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/50" onClick={onClose}>
+      <div
+        className="w-full space-y-3 rounded-t-[32px] bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+        onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+        data-testid="realm-character-pick"
+      >
+        <p className="text-center text-lg font-black">{t("揀你嘅角色")}</p>
+        <div className="grid grid-cols-4 gap-2">
+          {CHARACTERS.map((c, i) => (
+            <button
+              key={c.name}
+              type="button"
+              onClick={() => setPick(i)}
+              aria-pressed={pick === i}
+              className={cn("flex cursor-pointer flex-col items-center rounded-2xl p-1 transition", pick === i ? "bg-[#FFF8D6] ring-2 ring-[#FBD000]" : "opacity-70")}
+            >
+              <img src={c.avatar} alt="" className="size-12 rounded-full border-2 object-cover" style={{ borderColor: c.colour }} />
+              <span className="mt-1 text-xs font-black">{t(c.name)}</span>
+              {PERKS[c.actor] ? <span className="text-center text-[9px] font-bold leading-tight text-[#3B5BA9]">{t(PERKS[c.actor])}</span> : null}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onPick(pick)}
+          className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#22A447] to-[#167A33] text-xl font-black text-white shadow-[0_5px_0_#0F5A25]"
+          data-testid="realm-enter"
+        >
+          {t("入場")}
+        </button>
+      </div>
     </div>
   );
 }

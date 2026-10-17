@@ -5,7 +5,7 @@
  *
  * 抽卡 odds are published on screen (App Store / Google Play rule for paid random items).
  */
-import type { BuildingKind, Stock } from "@/lib/realm";
+import type { Stock } from "@/lib/realm";
 
 export type Rarity = "N" | "R" | "SR" | "SSR";
 export const RARITIES: readonly Rarity[] = ["SSR", "SR", "R", "N"];
@@ -18,16 +18,30 @@ export const PULL_PRICE = 10;
 export const TEN_PRICE = 90;
 
 export const ADS_PER_DAY = 14;
-/** What one free ad in the shop gives: 能量 or a bundle of materials (you pick). */
+/** What one free ad in the shop gives. */
 export const AD_ENERGY = 20;
-export const AD_MATERIALS: Stock = { wood: 3, stone: 2, gold: 0 };
 
-export type PoolId = "hero" | "house";
+/**
+ * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each
+ * used once and then gone. They replace the old 房屋券 and materials.
+ */
+export type SpecialId = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage";
+export const SPECIALS: { id: SpecialId; name: string; emoji: string; what: string }[] = [
+  { id: "dragon", name: "龍息", emoji: "🐉", what: "龍飛出嚟燒走對手一塊地，變返冇人擁有" },
+  { id: "meteor", name: "天降隕石", emoji: "☄️", what: "揀一個區，對手喺嗰區嘅地全部降一級" },
+  { id: "blackhole", name: "黑洞", emoji: "🌀", what: "全部對手被吸走，送返起點" },
+  { id: "goldroad", name: "黃金之路", emoji: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
+  { id: "iceage", name: "冰河時代", emoji: "❄️", what: "全部對手結冰，停一轉" },
+];
+export const SPECIAL_IDS = SPECIALS.map((c) => c.id);
+/** At most this many 特別卡 go into one game. */
+export const MAX_SPECIALS = 3;
+/** Old materials turn into 特別卡: one card for every this many pieces. */
+export const MATERIALS_PER_CARD = 30;
+
+export type PoolId = "hero" | "special";
 /** A thing a draw can give. */
-export type Prize =
-  | { kind: "hero"; id: string }
-  | { kind: "house"; id: BuildingKind }
-  | { kind: "materials"; stock: Stock };
+export type Prize = { kind: "hero"; id: string } | { kind: "special"; id: SpecialId } | { kind: "shards"; n: number };
 
 /** Characters: the four you start with are R; 阿瓜 (pumpkin) and 阿科 (Frankenstein) are SR, 阿神 (grim reaper) SSR. */
 export const HEROES: { id: string; name: string; rarity: Rarity; avatar?: string; emoji?: string }[] = [
@@ -39,22 +53,18 @@ export const HEROES: { id: string; name: string; rarity: Rarity; avatar?: string
   { id: "franken", name: "阿科", rarity: "SR", avatar: "/art/avatars/franken.jpg" },
   { id: "reaper", name: "阿神", rarity: "SSR", avatar: "/art/avatars/reaper.jpg" },
 ];
-/** Houses: a 房屋券 builds that building on your 領地 without materials. */
-export const HOUSES: { id: BuildingKind; rarity: Rarity }[] = [
-  { id: "rent", rarity: "R" },
-  { id: "station", rarity: "SR" },
-  { id: "table", rarity: "SSR" },
-];
-/** N draws give a little material instead. */
-const N_PRIZE: Record<PoolId, Stock> = { hero: { wood: 3, stone: 1, gold: 0 }, house: { wood: 2, stone: 2, gold: 0 } };
+/** N character draws give one 碎片. */
+const N_SHARDS = 1;
 /** A character you already have turns into this many 碎片. */
 export const DUPLICATE_SHARDS = 5;
 
 export type Collection = {
   heroes: Record<string, number>;
   shards: number;
-  /** 房屋券 by building kind. */
-  vouchers: Partial<Record<BuildingKind, number>>;
+  /** 特別卡 held, by card. */
+  specials: Partial<Record<SpecialId, number>>;
+  /** The old 領地 materials have been turned into 特別卡. */
+  converted: boolean;
   /** Draws since the last SSR, per pool. */
   sinceSSR: Record<PoolId, number>;
   /** 新手禮包 bought; 月卡 runs until this day (YYYY-MM-DD) and was last claimed on `monthClaimed`. */
@@ -71,8 +81,9 @@ export function newCollection(): Collection {
   return {
     heroes: { vampire: 1, jiangshi: 1, mummy: 1, zombie: 1 },
     shards: 0,
-    vouchers: {},
-    sinceSSR: { hero: 0, house: 0 },
+    specials: {},
+    converted: false,
+    sinceSSR: { hero: 0, special: 0 },
     starter: false,
     monthUntil: null,
     monthClaimed: null,
@@ -100,25 +111,38 @@ export function rollRarity(r: number, sinceSSR: number): Rarity {
   return "N";
 }
 
-function prizeOf(pool: PoolId, rarity: Rarity, r: number): Prize {
-  if (rarity === "N") return { kind: "materials", stock: { ...N_PRIZE[pool] } };
-  if (pool === "hero") {
-    const list = HEROES.filter((h) => h.rarity === rarity);
-    return { kind: "hero", id: list[Math.floor(r * list.length) % list.length].id };
-  }
-  const list = HOUSES.filter((h) => h.rarity === rarity);
-  return { kind: "house", id: list[Math.floor(r * list.length) % list.length].id };
+function prizeOf(rarity: Rarity, r: number): Prize {
+  if (rarity === "N") return { kind: "shards", n: N_SHARDS };
+  const list = HEROES.filter((h) => h.rarity === rarity);
+  return { kind: "hero", id: list[Math.floor(r * list.length) % list.length].id };
+}
+
+export function randomSpecial(r: number): SpecialId {
+  return SPECIAL_IDS[Math.floor(r * SPECIAL_IDS.length) % SPECIAL_IDS.length];
+}
+
+export function addSpecial(c: Collection, id: SpecialId, n = 1): Collection {
+  return { ...c, specials: { ...c.specials, [id]: (c.specials[id] ?? 0) + n } };
 }
 
 export type Pull = { rarity: Rarity; prize: Prize; duplicate: boolean };
 
 /**
- * Draw `times` (1 or 10) from a pool. `random` gives numbers in [0, 1). A ten-draw with nothing SR or better
- * turns its last draw into an SR. Returns the draws and the collection with everything added (materials are
- * returned separately for the wallet).
+ * Draw `times` (1 or 10) from a pool. `random` gives numbers in [0, 1).
+ * 角色卡池: rarity by the odds, pity at PITY, a ten-draw holds an SR or better; N gives a 碎片.
+ * 特別卡池: every draw is a 特別卡, each of the five equally likely.
  */
-export function draw(c: Collection, pool: PoolId, times: 1 | 10, random: () => number): { pulls: Pull[]; collection: Collection; materials: Stock } {
-  let since = c.sinceSSR[pool];
+export function draw(c: Collection, pool: PoolId, times: 1 | 10, random: () => number): { pulls: Pull[]; collection: Collection } {
+  if (pool === "special") {
+    let next = c;
+    const pulls = Array.from({ length: times }, () => {
+      const id = randomSpecial(random());
+      next = addSpecial(next, id);
+      return { rarity: "SSR" as Rarity, prize: { kind: "special" as const, id }, duplicate: false };
+    });
+    return { pulls, collection: next };
+  }
+  let since = c.sinceSSR.hero;
   const rarities: Rarity[] = [];
   for (let k = 0; k < times; k++) {
     const rarity = rollRarity(random(), since);
@@ -126,54 +150,51 @@ export function draw(c: Collection, pool: PoolId, times: 1 | 10, random: () => n
     rarities.push(rarity);
   }
   if (times === 10 && !rarities.some((r) => r === "SR" || r === "SSR")) rarities[9] = "SR";
-  let next: Collection = { ...c, heroes: { ...c.heroes }, vouchers: { ...c.vouchers }, sinceSSR: { ...c.sinceSSR, [pool]: since } };
-  const materials: Stock = { wood: 0, stone: 0, gold: 0 };
+  let next: Collection = { ...c, heroes: { ...c.heroes }, sinceSSR: { ...c.sinceSSR, hero: since } };
   const pulls = rarities.map((rarity) => {
-    const prize = prizeOf(pool, rarity, random());
+    const prize = prizeOf(rarity, random());
     let duplicate = false;
     if (prize.kind === "hero") {
       duplicate = (next.heroes[prize.id] ?? 0) > 0;
       if (duplicate) next = { ...next, shards: next.shards + DUPLICATE_SHARDS };
       next.heroes[prize.id] = (next.heroes[prize.id] ?? 0) + 1;
-    } else if (prize.kind === "house") {
-      next.vouchers[prize.id] = (next.vouchers[prize.id] ?? 0) + 1;
-    } else {
-      materials.wood += prize.stock.wood;
-      materials.stone += prize.stock.stone;
-      materials.gold += prize.stock.gold;
+    } else if (prize.kind === "shards") {
+      next = { ...next, shards: next.shards + prize.n };
     }
     return { rarity, prize, duplicate };
   });
-  return { pulls, collection: next, materials };
+  return { pulls, collection: next };
+}
+
+/** Once: the old materials become 特別卡 (about one per MATERIALS_PER_CARD pieces, at least one if there are any). */
+export function convertMaterials(c: Collection, stock: Stock, random: () => number): { collection: Collection; cards: number } {
+  if (c.converted) return { collection: c, cards: 0 };
+  const pieces = stock.wood + stock.stone + stock.gold;
+  const cards = pieces > 0 ? Math.max(1, Math.round(pieces / MATERIALS_PER_CARD)) : 0;
+  let next: Collection = { ...c, converted: true };
+  for (let k = 0; k < cards; k++) next = addSpecial(next, randomSpecial(random()));
+  return { collection: next, cards };
 }
 
 /** 能量 packs. Real money through App Store / Google Play later; for now test buttons add the 能量 straight away. */
 export const PACKS = [
-  { id: "starter", name: "新手禮包", price: "HK$8", energy: 300, gold: 5, once: true },
-  { id: "small", name: "細能量包", price: "HK$8", energy: 100, gold: 0, once: false },
-  { id: "mid", name: "中能量包", price: "HK$38", energy: 550, gold: 0, once: false },
-  { id: "big", name: "大能量包", price: "HK$78", energy: 1200, gold: 0, once: false },
+  { id: "starter", name: "新手禮包", price: "HK$8", energy: 300, specials: 1, once: true },
+  { id: "small", name: "細能量包", price: "HK$8", energy: 100, specials: 0, once: false },
+  { id: "mid", name: "中能量包", price: "HK$38", energy: 550, specials: 0, once: false },
+  { id: "big", name: "大能量包", price: "HK$78", energy: 1200, specials: 0, once: false },
 ] as const;
 /** 月卡: 30 days, claim this much 能量 each day. */
 export const MONTH_CARD = { price: "HK$38", days: 30, daily: 30 } as const;
-
-/** Material bundles for 能量. */
-export const MATERIAL_BUNDLES: { id: string; stock: Stock; price: number }[] = [
-  { id: "wood10", stock: { wood: 10, stone: 0, gold: 0 }, price: 18 },
-  { id: "stone10", stock: { wood: 0, stone: 10, gold: 0 }, price: 27 },
-  { id: "gold5", stock: { wood: 0, stone: 0, gold: 5 }, price: 36 },
-];
 
 /** 精選: two offers a day, chosen from the day — a house voucher or a character at a discount. */
 export type Deal = { id: string; prize: Prize; price: number; was: number };
 export function dealsOf(day: string): Deal[] {
   let h = 2166136261;
   for (let k = 0; k < day.length; k++) h = Math.imul(h ^ day.charCodeAt(k), 16777619) >>> 0;
-  const srHouses = HOUSES.filter((x) => x.rarity === "SR");
-  const house = srHouses[h % srHouses.length];
+  const special = SPECIAL_IDS[h % SPECIAL_IDS.length];
   const hero = HEROES.filter((x) => x.rarity === "SR")[(h >>> 3) % 2];
   return [
-    { id: `house-${house.id}`, prize: { kind: "house", id: house.id }, price: 60, was: 100 },
+    { id: `special-${special}`, prize: { kind: "special", id: special }, price: 150, was: 250 },
     { id: `hero-${hero.id}`, prize: { kind: "hero", id: hero.id }, price: 120, was: 200 },
   ];
 }
@@ -191,14 +212,15 @@ export function parseCollection(value: unknown): Collection {
   const num = (n: unknown) => (typeof n === "number" && n >= 0 ? Math.floor(n) : 0);
   const heroes: Record<string, number> = { ...base.heroes };
   for (const h of HEROES) if (raw.heroes && num(raw.heroes[h.id]) > 0) heroes[h.id] = num(raw.heroes[h.id]);
-  const vouchers: Collection["vouchers"] = {};
-  for (const h of HOUSES) if (raw.vouchers && num(raw.vouchers[h.id]) > 0) vouchers[h.id] = num(raw.vouchers[h.id]);
+  const specials: Collection["specials"] = {};
+  for (const id of SPECIAL_IDS) if (raw.specials && num(raw.specials[id]) > 0) specials[id] = num(raw.specials[id]);
   const str = (s: unknown) => (typeof s === "string" ? s : null);
   return {
     heroes,
     shards: num(raw.shards),
-    vouchers,
-    sinceSSR: { hero: num(raw.sinceSSR?.hero), house: num(raw.sinceSSR?.house) },
+    specials,
+    converted: raw.converted === true,
+    sinceSSR: { hero: num(raw.sinceSSR?.hero), special: 0 },
     starter: raw.starter === true,
     monthUntil: str(raw.monthUntil),
     monthClaimed: str(raw.monthClaimed),

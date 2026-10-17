@@ -89,6 +89,9 @@ const SPECIAL_WHEN: Record<string, "paid" | "card" | "pays" | "builds"> = {
   jiangshi: "card",
   mummy: "pays",
   zombie: "builds",
+  pumpkin: "card",
+  franken: "builds",
+  reaper: "paid",
 };
 
 /** 功能卡 names, icons and what they do, for the hand and the messages. */

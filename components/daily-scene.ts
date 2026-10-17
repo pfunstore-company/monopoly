@@ -555,7 +555,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
           }
         });
         // The bodies stand 1.2 tall with their feet at 0.
-        model.scale.setScalar(HERO_HEIGHT / 1.2);
+        model.scale.setScalar(HERO_HEIGHT / (who.tall ?? 1.2));
         hero.add(model);
         const mixer = new T.AnimationMixer(model);
         const clip = (name: string) => gltf.animations.find((a: any) => a.name === name);

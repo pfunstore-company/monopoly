@@ -65,11 +65,16 @@ export function loadGltfLoader(T: any): Promise<any> {
  * The 3D characters. Each file carries a rigged body and three clips — "walk" (their own way of
  * walking), "cheer" and "special" — so no two players move alike.
  */
-export const ACTORS: Record<string, { url: string; walkPace: number }> = {
+/** `tall`: how tall the raw body stands (1.2 for the first four; Meshy's later rigs stand 1.0). */
+export const ACTORS: Record<string, { url: string; walkPace: number; tall?: number }> = {
   vampire: { url: "/models/vampire.glb", walkPace: 2.4 },
   jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.5 },
   mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
   zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
+  // The three drawn from the shop (Sky 2026-10-18, Meshy): 阿瓜, 阿科, 阿神.
+  pumpkin: { url: "/models/pumpkin.glb", walkPace: 0.75, tall: 1.0 },
+  franken: { url: "/models/franken.glb", walkPace: 0.75, tall: 1.0 },
+  reaper: { url: "/models/reaper.glb", walkPace: 0.75, tall: 1.0 },
 };
 export const CHARACTER_HEIGHT = 0.8;
 const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];
@@ -1458,7 +1463,7 @@ export function createBoardScene(
         });
         // Each skinned body stands 1.2 tall with its feet at 0; its bones carry the armature's
         // 0.01 scale, so a bounding box of the raw mesh would read it 100× too small.
-        model.scale.setScalar(CHARACTER_HEIGHT / 1.2);
+        model.scale.setScalar(CHARACTER_HEIGHT / (actor.tall ?? 1.2));
         const g = tokens[seat];
         g.children.forEach((c: any) => (c.visible = false));
         g.add(model);

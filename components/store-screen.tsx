@@ -74,8 +74,9 @@ function PrizePic({ prize, className }: { prize: Prize; className?: string }) {
 export function SpecialPic({ id, className }: { id: string; className?: string }) {
   const card = SPECIALS.find((c) => c.id === id);
   return (
-    <span className={cn("flex items-center justify-center rounded-lg border-2 border-[#FBD000] bg-gradient-to-b from-[#3B0764] to-[#0F172A] text-3xl shadow-[0_0_10px_rgba(251,208,0,0.5)]", className)}>
-      {card?.emoji ?? "✨"}
+    <span className={cn("flex items-center justify-center overflow-hidden rounded-lg border-2 border-[#FBD000] bg-gradient-to-b from-[#3B0764] to-[#0F172A] text-3xl shadow-[0_0_10px_rgba(251,208,0,0.5)]", className)}>
+      {/* Sky's card pictures (2026-10-18). */}
+      {card ? <img src={`/art/specials/${card.id}.webp`} alt="" draggable={false} className="h-full w-full object-cover" /> : "✨"}
     </span>
   );
 }

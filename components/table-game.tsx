@@ -1184,7 +1184,9 @@ export function EightBoard({
             ) : null}
             {reward ? (
               <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[#FFF8D6] p-2 text-sm font-black" data-testid="table-reward">
-                {t("第一名獎勵：特別卡")} {SPECIALS.find((c) => c.id === reward)?.emoji} {t(SPECIALS.find((c) => c.id === reward)?.name ?? "")}
+                {t("第一名獎勵：特別卡")}
+                <img src={`/art/specials/${reward}.webp`} alt="" className="size-9 rounded-md border-2 border-[#FBD000]" />
+                {t(SPECIALS.find((c) => c.id === reward)?.name ?? "")}
               </p>
             ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">

@@ -286,8 +286,8 @@ export type Deed = { owner: number; level: number; locked?: number };
  */
 export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" | "levy" | "double" | Special;
 /**
- * 特別卡 (Sky 2026-10-18): the 領地 cards. Each player takes up to SPECIALS_IN three into the game, and every lap
- * deals each player one more. dragon 龍息 burns an opponent's best lot back to nobody's · meteor 天降隕石 drops every
+ * 特別卡 (Sky 2026-10-18): the 領地 cards. Each player takes up to SPECIALS_IN three into the game; every lap deals
+ * an ordinary 功能卡. dragon 龍息 burns an opponent's best lot back to nobody's · meteor 天降隕石 drops every
  * opponent lot in their strongest area a level · blackhole 黑洞 sends every opponent back to the plaza · goldroad
  * 黃金之路: on your next roll every empty lot you walk over becomes yours · iceage 冰河時代: every opponent misses
  * their next turn.
@@ -564,10 +564,10 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
   // 領地 has no cards lying on the squares, so coming round to the plaza deals one more often (Sky 2026-10-18).
   if (passedStart && state.board === "clover") {
-    // Every lap deals one more 特別卡 (Sky 2026-10-18), if there's room in the hand.
+    // Every lap deals one ordinary 功能卡 (Sky 2026-10-18); the 特別卡 are only the ones brought in.
     if (moved.seats[seat].powers.length >= MAX_POWERS) return moved;
     const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + seat * 7 + player.turnsTaken * 13;
-    const power = SPECIAL_CARDS[seed % SPECIAL_CARDS.length];
+    const power = POWERS[seed % POWERS.length];
     events.push({ kind: "power", seat, power });
     return withSeat(moved, seat, { powers: [...moved.seats[seat].powers, power] });
   }

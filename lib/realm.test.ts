@@ -147,7 +147,7 @@ describe("領地: playing on the island", () => {
     const { realm } = buyLand(emptyRealm(), rich(), "island");
     assert.equal(boardOf(realm), "clover");
     let state = newTable(guests(3), rulesOf(realm), "clover");
-    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o4
+    state = reduceTable(state, { type: "roll", dice: [4, 1] }); // plaza → o4 (one die)
     assert.equal(state.deeds.o4?.owner, 0);
   });
 

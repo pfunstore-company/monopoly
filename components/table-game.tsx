@@ -895,12 +895,13 @@ export function EightBoard({
           </p>
           <span className="size-10" />
         </div>
-        <div className="flex items-start justify-between gap-1">
+        {/* Sky (2026-10-17): small player cards in a centred row, not four wide white boxes. */}
+        <div className="flex items-start justify-center gap-1.5">
           {table.seats.map((seat, index) => (
             <div
               key={seat.name}
               className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center rounded-2xl border-[3px] bg-white/90 py-1 shadow-md transition-transform",
+                "relative flex w-[76px] min-w-0 flex-none flex-col items-center rounded-xl border-2 bg-white/85 px-0.5 py-0.5 shadow-md transition-transform",
                 table.current === index && table.phase !== "over" ? "scale-105 border-[#FBD000] shadow-[0_0_16px_4px_rgba(251,208,0,0.75)] animate-[breathe_1.6s_ease-in-out_infinite]" : "border-transparent",
                 seat.bankrupt && "opacity-40 grayscale",
                 gotCard?.seat === index && "animate-[icon-glow_0.9s_ease-in-out_2]",
@@ -932,9 +933,9 @@ export function EightBoard({
               >
                 {rankOf[index] + 1}
               </span>
-              <Face seat={seat} className="size-9 border-[3px] text-lg" />
-              <span className="text-[11px] font-black leading-tight">{t(seat.name)}</span>
-              <span key={seat.cash} className="flex items-center gap-0.5 text-sm font-black tabular-nums animate-[bump_0.35s_ease-out]">
+              <Face seat={seat} className="size-7 border-2 text-base" />
+              <span className="max-w-full truncate text-[10px] font-black leading-tight">{t(seat.name)}</span>
+              <span key={seat.cash} className="flex items-center gap-0.5 text-xs font-black tabular-nums animate-[bump_0.35s_ease-out] [&_img]:size-3.5">
                 <Energy />
                 {compactEnergy(tableEnergy(seat.cash), lang)}
               </span>
@@ -951,7 +952,7 @@ export function EightBoard({
                 </span>
               ) : null}
               {/* How much land and how many building levels they hold. */}
-              {<span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
+              {<span className="text-[9px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
                 {table.board === "clover" ? t("地 {l}・升級 {b}", { l: holdings[index].lots, b: holdings[index].levels }) : t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
               </span>}
               {seat.jailed ? <span className="text-xs">🔒</span> : null}

@@ -778,7 +778,8 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
       next = withSeat(pay(next, seat, BAIL, null, events), seat, { jailed: false });
       if (next.seats[seat].bankrupt) return bump(finishTurn(next, events));
     }
-    return bump(walk({ ...next, stepsLeft: a, pending: b }, seat, events));
+    // 領地 island (Sky 2026-10-17): one die only.
+    return bump(walk({ ...next, stepsLeft: a, pending: next.board === "clover" ? 0 : b }, seat, events));
   }
 
   if (action.type === "power") {

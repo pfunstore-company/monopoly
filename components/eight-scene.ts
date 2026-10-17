@@ -633,6 +633,80 @@ export function createBoardScene(
         scene.add(w);
         islandAnims.push((now) => (t.offset.y = (now / 1100) % 1));
       }
+      // 溫泉 (Sky 2026-10-18): water in the dry basins, steam off it, chimney smoke and pulsing firelight — all code.
+      {
+        const puffTex = (() => {
+          const c = document.createElement("canvas");
+          c.width = c.height = 64;
+          const g = c.getContext("2d")!;
+          const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+          grad.addColorStop(0, "rgba(255,255,255,1)");
+          grad.addColorStop(0.5, "rgba(255,255,255,0.45)");
+          grad.addColorStop(1, "rgba(255,255,255,0)");
+          g.fillStyle = grad;
+          g.fillRect(0, 0, 64, 64);
+          return new T.CanvasTexture(c);
+        })();
+        /** Puffs rising from a point: steam (white) or smoke (grey), each looping on its own phase. */
+        const plume = (px: number, py: number, spread: number, n: number, colour: number, size: number, rise: number, period: number, alpha: number) => {
+          const [x, z] = isleAt(px, py);
+          for (let k = 0; k < n; k++) {
+            const m = new T.Sprite(new T.SpriteMaterial({ map: puffTex, color: colour, transparent: true, depthWrite: false, opacity: 0, fog: false, toneMapped: false, depthTest: false }));
+            const ox = (Math.random() - 0.5) * spread * CLOVER_PX, oz = ((Math.random() - 0.5) * spread * 0.5 * CLOVER_PX) / Math.sin(CLOVER_ELEV);
+            const phase = k / n, drift = (Math.random() - 0.5) * 0.4;
+            m.renderOrder = 8;
+            scene.add(m);
+            islandAnims.push((now) => {
+              const t = ((now / period + phase) % 1 + 1) % 1;
+              m.position.set(x + ox + drift * t, TOP + 0.05 + t * rise, z + oz);
+              const sc = size * (0.5 + t * 1.1);
+              m.scale.set(sc, sc, 1);
+              m.material.opacity = alpha * Math.sin(Math.PI * t);
+            });
+          }
+        };
+        for (const pool of isle.pools ?? []) {
+          const [x, z] = isleAt(pool.x, pool.y);
+          const t = new T.TextureLoader().load("/art/islands/water.webp");
+          t.encoding = T.sRGBEncoding;
+          t.wrapS = t.wrapT = T.RepeatWrapping;
+          t.repeat.set(pool.rx / 40, pool.ry / 40);
+          const mesh = new T.Mesh(new T.CircleGeometry(1, 48), new T.MeshBasicMaterial({ map: t, color: 0x9fe7ef, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.scale.set(pool.rx * CLOVER_PX, (pool.ry * CLOVER_PX) / Math.sin(CLOVER_ELEV), 1);
+          mesh.position.set(x, TOP - 0.008, z);
+          scene.add(mesh);
+          // A dark wet rim just outside the water, so it sits in the basin.
+          const rim = new T.Mesh(new T.CircleGeometry(1, 48), new T.MeshBasicMaterial({ color: 0x1d3a40, transparent: true, opacity: 0.35, depthWrite: false, toneMapped: false }));
+          rim.rotation.x = -Math.PI / 2;
+          rim.scale.set(mesh.scale.x * 1.07, mesh.scale.y * 1.1, 1);
+          rim.position.set(x, TOP - 0.009, z);
+          scene.add(rim);
+          islandAnims.push((now) => {
+            t.offset.x = (now / 9000) % 1;
+            t.offset.y = Math.sin(now / 2300) * 0.05;
+          });
+          plume(pool.x, pool.y, pool.rx * 1.4, Math.max(4, Math.round(pool.rx / 12)), 0xffffff, Math.max(0.45, (pool.rx * CLOVER_PX) * 0.7), 1.1, 4200, 0.5);
+        }
+        for (const c of isle.smoke ?? []) plume(c.x, c.y, 10, 7, 0x6b6b70, 0.5, 2.2, 5200, 0.6);
+        for (const gl of isle.glows ?? []) {
+          const [x, z] = isleAt(gl.x, gl.y);
+          const seed = Math.random() * 10;
+          // An orange halo and a hot yellow core, flickering together.
+          for (const [colour, size, strength] of [[gl.colour, 3.4, 1], ["#FFE9A0", 1.4, 0.9]] as const) {
+            const m = new T.Sprite(new T.SpriteMaterial({ map: puffTex, color: new T.Color(colour), transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending, fog: false, toneMapped: false }));
+            m.position.set(x, TOP + 0.15, z);
+            m.renderOrder = 9;
+            scene.add(m);
+            const base = gl.r * CLOVER_PX * size;
+            islandAnims.push((now) => {
+              const f = 0.85 + 0.1 * Math.sin(now / 170 + seed) + 0.06 * Math.sin(now / 53 + seed * 3);
+              m.scale.set(base * f, base * f, 1);
+              m.material.opacity = strength * Math.min(1, f);
+            });
+          }
+        }
+      }
       // Decorations stand up facing the camera (it never turns), feet on their spot, moving like on the 領地 page.
       const loader = new T.TextureLoader();
       const standee = (file: string, widthPx: number, anchor: [number, number] = [0.5, 0]) => {

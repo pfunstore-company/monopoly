@@ -14,7 +14,7 @@
  * TEMPORARY numbers, marked 臨時 on screen: land prices, material shop prices, building recipes,
  * the rent a rent house charges and how much a station shortens a game.
  */
-import { CARDS, RENT_CAP, TOLL, TURNS_EACH, type BoardId, type Card, type TableRules } from "@/lib/eight";
+import { CARDS, CLOVER_LAPS, RENT_CAP, TOLL, TURNS_EACH, type BoardId, type Card, type TableRules } from "@/lib/eight";
 
 // ---------- Land ----------
 
@@ -169,6 +169,7 @@ export function tablesOf(realm: Realm): number {
 }
 
 export function turnsOf(realm: Realm): number {
+  if (boardOf(realm) === "clover") return CLOVER_LAPS;
   return Math.max(MIN_TURNS, TURNS_EACH - STATION_TURNS * count(realm, "station"));
 }
 

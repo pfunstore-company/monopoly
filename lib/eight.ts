@@ -17,6 +17,8 @@ export const HOUSE_CUT = 2;
 export const STAKE = ENTRY_FEE - HOUSE_CUT;
 
 export const TURNS_EACH = 12;
+/** 三葉草 counts whole laps instead of rolls (Sky 2026-10-18). */
+export const CLOVER_LAPS = 5;
 /** Up to six at a table (a 領地 seats 2–6; the public table 2–4). */
 export const MAX_SEATS = 6;
 export const START_PAY = 2;
@@ -535,7 +537,9 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   // (On 三葉草 that's once a lap, at the start of the forest loop.)
   events.push({ kind: "step", seat, to, passedStart });
   const startPay = START_PAY * (heroOf(player) === "pumpkin" ? PUMPKIN_START : 1);
-  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0) });
+  // 三葉草 (Sky 2026-10-18): a 轉 is one whole lap — it counts when you come round to the plaza, not each roll.
+  const lapDone = passedStart && state.board === "clover" ? { turnsTaken: player.turnsTaken + 1 } : {};
+  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
   return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
 }
 
@@ -755,7 +759,7 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     deeds[key] = locked > 0 ? { ...deed, locked } : { owner: deed.owner, level: deed.level };
     if (locked <= 0) events.push({ kind: "unlocked", key });
   }
-  let done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
+  let done = state.board === "clover" ? { ...state, deeds } : withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
   // 雙倍租 counts down with every turn, like a lock.
   done.seats.forEach((seat, i) => {
     if (!seat.doubleRent) return;

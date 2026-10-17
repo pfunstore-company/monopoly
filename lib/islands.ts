@@ -18,6 +18,12 @@ export type IslandArt = {
   left?: number;
   /** What runs in the dry channels: water (default) or lava. */
   flow?: "water" | "lava";
+  /** Hot-spring water lying in dry basins (ellipses), each steaming. */
+  pools?: (At & { rx: number; ry: number })[];
+  /** Chimney tops that smoke. */
+  smoke?: At[];
+  /** Firelight and glowing runes, pulsing: centre, radius, colour. */
+  glows?: (At & { r: number; colour: string })[];
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -104,6 +110,40 @@ export const ISLANDS: IslandArt[] = [
     falls: [
       { x: 72, y: 618, w: 20, h: 166 },
       { x: 688, y: 618, w: 20, h: 166 },
+    ],
+    spots: [],
+    decor: [],
+  },
+  // 溫泉島 (Sky 2026-10-18): 森林 (left), 溫泉火山口 (back), 鐵匠鋪 (right). Picture shrunk to 76%; the hot-spring
+  // water, steam, chimney smoke, forge fire and rune glow are all code.
+  {
+    id: "spring",
+    name: "溫泉島",
+    art: "/art/islands/spring.webp",
+    w: 715,
+    h: 1271,
+    top: 172,
+    left: 118,
+    tiles: "painted",
+    squares: [
+      { x: 357, y: 798 },
+      { x: 216, y: 694 }, { x: 176, y: 633 }, { x: 188, y: 565 }, { x: 219, y: 486 }, { x: 218, y: 421 }, { x: 192, y: 357 },
+      { x: 198, y: 264 }, { x: 258, y: 275 }, { x: 322, y: 281 }, { x: 388, y: 282 }, { x: 451, y: 276 }, { x: 513, y: 265 },
+      { x: 515, y: 358 }, { x: 489, y: 421 }, { x: 489, y: 487 }, { x: 524, y: 565 }, { x: 536, y: 633 }, { x: 496, y: 694 },
+    ],
+    nest: { x: 357, y: 787, w: 170 },
+    falls: [
+      { x: 68, y: 669, w: 20, h: 220 },
+      { x: 634, y: 669, w: 20, h: 220 },
+    ],
+    pools: [
+      { x: 363, y: 179, rx: 112, ry: 46 },
+      { x: 270, y: 450, rx: 26, ry: 15 },
+    ],
+    smoke: [{ x: 600, y: 247 }],
+    glows: [
+      { x: 652, y: 465, r: 23, colour: "#FF8A1F" },
+      { x: 355, y: 703, r: 17, colour: "#FF6A2A" },
     ],
     spots: [],
     decor: [],

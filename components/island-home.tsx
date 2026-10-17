@@ -93,6 +93,36 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             <div className="absolute inset-x-0 bottom-0 h-[10%] animate-[foam_1.2s_ease-in-out_infinite] rounded-full bg-white/80 blur-[2px]" />
           </div>
         ))}
+        {/* 溫泉 (Sky 2026-10-18): water in the basins with steam off it, chimney smoke, firelight — code, not paint. */}
+        {(island.pools ?? []).map((pool, i) => (
+          <div
+            key={`pool${i}`}
+            className="pointer-events-none absolute overflow-hidden rounded-[50%] opacity-90"
+            style={{ left: pct(pool.x - pool.rx, island.w), top: pct(pool.y - pool.ry, island.h), width: pct(pool.rx * 2, island.w), height: pct(pool.ry * 2, island.h) }}
+          >
+            <div className="absolute inset-0 animate-[water-flow_6s_linear_infinite] bg-[#7fd6e2] bg-[length:60px_60px] bg-blend-multiply [background-image:url(/art/islands/water.webp)]" />
+          </div>
+        ))}
+        {[
+          ...(island.pools ?? []).flatMap((pool, i) => {
+            const n = Math.max(3, Math.round(pool.rx / 18));
+            return Array.from({ length: n }, (_, k) => ({ key: `st${i}-${k}`, x: pool.x + (k / (n - 1) - 0.5) * pool.rx * 1.3, y: pool.y, w: Math.max(14, pool.rx * 0.35), grey: false, delay: (k * 4.2) / n, dur: 4.2 }));
+          }),
+          ...(island.smoke ?? []).flatMap((c, i) => Array.from({ length: 5 }, (_, k) => ({ key: `sm${i}-${k}`, x: c.x, y: c.y, w: 22, grey: true, delay: k * 1.04, dur: 5.2 }))),
+        ].map((p) => (
+          <span
+            key={p.key}
+            className={cn("pointer-events-none absolute aspect-square rounded-full blur-[3px] animate-[steam-rise_linear_infinite]", p.grey ? "bg-[#5d5d63]" : "bg-white")}
+            style={{ left: pct(p.x, island.w), top: pct(p.y - p.w / 2, island.h), width: pct(p.w, island.w), animationDuration: `${p.dur}s`, animationDelay: `-${p.delay}s`, ["--dx" as string]: p.grey ? "12px" : "4px", ["--puff" as string]: p.grey ? "0.6" : "0.45" }}
+          />
+        ))}
+        {(island.glows ?? []).map((g, i) => (
+          <span
+            key={`gl${i}`}
+            className="pointer-events-none absolute aspect-square animate-[glow-pulse_1.3s_ease-in-out_infinite] rounded-full mix-blend-screen blur-[4px]"
+            style={{ left: pct(g.x, island.w), top: pct(g.y, island.h), width: pct(g.r * 2.4, island.w), background: `radial-gradient(circle, ${g.colour} 0%, ${g.colour}99 35%, transparent 70%)` }}
+          />
+        ))}
         {/* The 18 squares: floating stones like the game board's, a little above their spot, each bobbing. */}
         {island.tiles === "stones" && island.squares.slice(1).map((sq, i) => (
           <img

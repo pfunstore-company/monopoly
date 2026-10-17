@@ -406,6 +406,17 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
 }
+/* 溫泉 steam and chimney smoke rising off the 領地 island page; firelight pulsing. */
+@keyframes steam-rise {
+  0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+  30% { opacity: var(--puff, 0.55); }
+  100% { transform: translate(calc(-50% + var(--dx, 0px)), -260%) scale(1.6); opacity: 0; }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(0.92); }
+  37% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.05); }
+  61% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.97); }
+}
 @keyframes water-flow {
   from { background-position: 0 0; }
   to { background-position: 0 96px; }

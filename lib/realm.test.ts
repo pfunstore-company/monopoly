@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BOARDS, ISLAND_LOOP, RENT_CAP, TURNS_EACH, newTable, reduceTable } from "./eight";
+import { BOARDS, CLOVER_LAPS, ISLAND_LOOP, RENT_CAP, TURNS_EACH, newTable, reduceTable } from "./eight";
 import {
   DECKS,
   HOUSE_RENT,
@@ -63,11 +63,11 @@ describe("領地: materials and building", () => {
   it("buildings cost materials, not money", () => {
     const { realm } = buyLand(emptyRealm(), newWallet(), "island");
     const wallet = rich();
-    const built = build(realm, wallet, 0, "station");
-    assert.equal(built.realm.slots[0], "station");
+    const built = build(realm, wallet, 0, "table");
+    assert.equal(built.realm.slots[0], "table");
     assert.equal(built.wallet.points, wallet.points);
-    assert.equal(built.wallet.stock.wood, 99 - RECIPES.station.wood);
-    assert.equal(built.wallet.stock.stone, 99 - RECIPES.station.stone);
+    assert.equal(built.wallet.stock.wood, 99 - RECIPES.table.wood);
+    assert.equal(built.wallet.stock.stone, 99 - RECIPES.table.stone);
   });
 
   it("can't build without enough materials", () => {
@@ -92,11 +92,9 @@ describe("領地: materials and building", () => {
     assert.equal(down.slots[0], null);
   });
 
-  it("stations shorten the game, not below the floor", () => {
-    let state = { realm: buyLand(emptyRealm(), { ...rich(), points: 9999 }, "island").realm, wallet: rich() };
-    state = build(state.realm, state.wallet, 0, "station");
-    state = build(state.realm, state.wallet, 1, "station");
-    assert.equal(turnsOf(state.realm), Math.max(MIN_TURNS, TURNS_EACH - 4));
+  it("the island game is counted in whole laps", () => {
+    const realm = buyLand(emptyRealm(), { ...rich(), points: 9999 }, "island").realm;
+    assert.equal(turnsOf(realm), CLOVER_LAPS);
   });
 
   it("the public table pays materials by place", () => {

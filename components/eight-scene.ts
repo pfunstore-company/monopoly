@@ -12,6 +12,7 @@
  */
 import { DECOR_DIR, ISLANDS } from "@/lib/islands";
 import { buildMonster } from "@/components/monster";
+import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
@@ -636,39 +637,29 @@ export function createBoardScene(
         img.src = DECOR_DIR + file;
         return mesh;
       };
-      // 龍巢 on the plaza, with the owner's own dragon lying in it (Sky 2026-10-09).
+      // 龍仔 (Sky 2026-10-17): no nest — the owner's dragon walks about the plaza and sometimes flies up to look at us.
       {
-        const level = decor?.nest?.level ?? 1;
         const n = isle.nest;
         const [x, z] = cloverAt(n.x, n.y + CLOVER_ISLAND.top);
-        const g = new T.Group();
-        g.position.set(x, TOP, z);
-        g.rotation.x = -CLOVER_ELEV;
-        scene.add(g);
-        const nestMesh = standee(level === 3 ? "nest3.webp" : "nest1.webp", n.w);
-        g.add(nestMesh);
-        const tall = n.w * CLOVER_PX * (409 / 560);
-        if (level >= 2) {
-          const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffd65a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
-          glow.scale.set(n.w * CLOVER_PX * 1.1, tall * 1.1, 1);
-          glow.position.set(0, tall * 0.5, -0.05);
-          g.add(glow);
-          islandAnims.push((now) => (glow.material.opacity = 0.35 + Math.sin(now / 600) * 0.2));
-        }
         const pet = decor?.nest?.pet ?? { element: 0, stage: 0 };
         const dragon = buildMonster(T, pet.element, pet.stage);
         dragon.setMood("rest");
-        const want = pet.stage === 0 ? 0.3 : 0.45;
+        const want = pet.stage === 0 ? 0.35 : 0.5;
         const holder = new T.Group();
         holder.add(dragon.group);
         holder.scale.setScalar(want / Math.max(0.1, dragon.height));
-        // In the hollow: up the nest picture from its foot, and a little towards the camera so the dragon is in front.
-        const up = tall * 0.42;
-        holder.position.set(x, TOP + Math.cos(CLOVER_ELEV) * up + Math.sin(CLOVER_ELEV) * 0.3, z - Math.sin(CLOVER_ELEV) * up + Math.cos(CLOVER_ELEV) * 0.3);
-        dragon.group.rotation.y = 0.5;
+        holder.position.set(x, TOP, z);
         scene.add(holder);
+        const roam = createRoamer((n.w * 0.32) * CLOVER_PX, ((n.w * 0.16) * CLOVER_PX) / Math.sin(CLOVER_ELEV), 7);
+        let mood = "rest";
         islandAnims.push((now) => {
-          dragon.group.rotation.y = 0.5 + Math.sin(now / 4000) * 0.35;
+          const p = roam(now);
+          holder.position.set(x + p.x, TOP + p.y, z + p.z);
+          dragon.group.rotation.y = p.yaw;
+          if (p.mood !== mood && pet.stage > 0) {
+            mood = p.mood;
+            dragon.setMood(p.mood);
+          }
           dragon.update(now);
         });
       }

@@ -5,7 +5,7 @@ import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
 import { NestDragon } from "@/components/nest-dragon";
-import { loadNestLevel, loadPet, saveNestLevel } from "@/components/wallet-store";
+import { loadPet } from "@/components/wallet-store";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 
 const SHOW_SPOTS = false;
@@ -59,12 +59,9 @@ function Decor({ kind, at, w, island }: { kind: DecorKind; at: At; w: number; is
 function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const { t } = useLang();
-  const [nest, setNest] = useState(1);
   const [pet, setPet] = useState<{ element: number; stage: number } | null>(null);
   useEffect(() => {
     const id = window.setTimeout(() => {
-      setNest(loadNestLevel());
       setPet(loadPet());
     }, 0);
     return () => window.clearTimeout(id);
@@ -113,32 +110,13 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             }}
           />
         ))}
-        {/* 龍巢 on the plaza with the player's own dragon in it; tap the nest to try levels 1–3 (testing). */}
-        <button
-          type="button"
-          onClick={() => {
-            const next = (nest % 3) + 1;
-            setNest(next);
-            saveNestLevel(next);
-          }}
-          className="absolute -translate-x-1/2 -translate-y-full cursor-pointer"
-          style={{ left: pct(island.nest.x, island.w), top: pct(island.nest.y, island.h), width: pct(island.nest.w, island.w) }}
-          aria-label={t("龍巢 {n} 級", { n: nest })}
-          data-testid="nest"
+        {/* 龍仔 (Sky 2026-10-17): no nest; the player's dragon wanders the plaza and now and then flies up to look at us. */}
+        <span
+          className="pointer-events-none absolute aspect-square -translate-x-1/2 -translate-y-1/2"
+          style={{ left: pct(island.nest.x, island.w), top: pct(island.nest.y, island.h), width: pct(island.nest.w * 1.2, island.w) }}
         >
-          <img
-            src={`${D}${nest === 3 ? "nest3" : "nest1"}.webp`}
-            alt=""
-            draggable={false}
-            className={cn("block w-full select-none drop-shadow-[0_6px_6px_rgba(0,0,0,0.45)]", nest === 2 && "animate-[nest-glow_2.4s_ease-in-out_infinite]")}
-          />
-          {nest >= 2 ? <span className="pointer-events-none absolute inset-[18%] animate-[breathe_2.4s_ease-in-out_infinite] rounded-full bg-[radial-gradient(closest-side,rgba(255,214,90,0.55),transparent)]" /> : null}
-          {/* The dragon lies in the hollow, a little behind the middle of the nest. */}
-          <span className="pointer-events-none absolute left-1/2 top-[-55%] aspect-square w-[95%] -translate-x-1/2">
-            {pet ? <NestDragon element={pet.element} stage={pet.stage} /> : <NestDragon element={0} stage={0} />}
-          </span>
-          <span className="pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#1E3A8A]/80 px-1.5 text-[10px] font-black text-[#FBD000]">Lv{nest}</span>
-        </button>
+          <NestDragon element={pet?.element ?? 0} stage={pet?.stage ?? 0} span={(island.nest.w * 1.2) / 75} plaza={island.nest.w} />
+        </span>
         {/* The start: a bigger stone in front of the 龍巢, as high as the others. */}
         {island.tiles === "stones" ? <img
           src="/art/islands/stone.webp"

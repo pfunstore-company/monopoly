@@ -1,14 +1,16 @@
 "use client";
 
+import { createRoamer } from "@/components/dragon-roam";
 import { loadThree } from "@/components/eight-scene";
-import { MODEL_CLOSE_UP, buildMonster } from "@/components/monster";
+import { buildMonster } from "@/components/monster";
 import { useEffect, useRef } from "react";
 
 /**
- * 龍巢 (Sky 2026-10-09): the player's own 3D dragon lying in the nest on their island — no stone, no background,
- * seen from the same high angle as the painted island, breathing and looking about.
+ * 龍仔 (Sky 2026-10-17): the player's own 3D dragon on their island's plaza — no nest, no background. It wanders about
+ * the plaza and sometimes flies up to look at us, seen from the same 50° as the painted island (same sizes as the
+ * game board: `span` is the box's width in board units, `plaza` the plaza's width in picture pixels).
  */
-export function NestDragon({ element, stage }: { element: number; stage: number }) {
+export function NestDragon({ element, stage, span, plaza }: { element: number; stage: number; span: number; plaza: number }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let dead = false;
@@ -25,36 +27,42 @@ export function NestDragon({ element, stage }: { element: number; stage: number 
         renderer.domElement.style.pointerEvents = "none";
         host.appendChild(renderer.domElement);
         const scene = new T.Scene();
-        const camera = new T.PerspectiveCamera(30, 1, 0.1, 50);
+        const h = span / 2;
+        const camera = new T.OrthographicCamera(-h, h, h, -h, 0.1, 50);
+        const elev = (50 * Math.PI) / 180;
+        camera.position.set(0, Math.sin(elev) * 10, Math.cos(elev) * 10);
+        camera.lookAt(0, 0, 0);
         scene.add(new T.HemisphereLight(0xfff4e0, 0x403020, 1.0));
         const sun = new T.DirectionalLight(0xfff2dc, 1.1);
         sun.position.set(-2, 5, 4);
         scene.add(sun);
         const monster = buildMonster(T, element, stage);
         monster.setMood("rest");
-        monster.group.scale.setScalar(monster.model ? MODEL_CLOSE_UP : 1);
-        monster.group.rotation.y = 0.5;
-        scene.add(monster.group);
-        const tall = monster.height * (monster.model ? MODEL_CLOSE_UP : 1);
-        // 50° down, like the island picture; the dragon's feet sit at the bottom middle of the box.
-        const elev = (50 * Math.PI) / 180, dist = 5.6;
-        const lookY = tall * 0.35;
-        camera.position.set(0, lookY + Math.sin(elev) * dist, Math.cos(elev) * dist);
-        camera.lookAt(0, lookY, 0);
+        const holder = new T.Group();
+        holder.add(monster.group);
+        holder.scale.setScalar((stage === 0 ? 0.35 : 0.5) / Math.max(0.1, monster.height));
+        scene.add(holder);
+        const px = 1 / 75;
+        const roam = createRoamer(plaza * 0.32 * px, (plaza * 0.16 * px) / Math.sin(elev), 7);
+        let mood = "rest";
         const fit = () => {
-          const w = host.clientWidth || 200, h = host.clientHeight || 200;
-          renderer.setSize(w, h, false);
+          const w = host.clientWidth || 200, hh = host.clientHeight || 200;
+          renderer.setSize(w, hh, false);
           renderer.domElement.style.width = `${w}px`;
-          renderer.domElement.style.height = `${h}px`;
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
+          renderer.domElement.style.height = `${hh}px`;
         };
         const watch = new ResizeObserver(fit);
         watch.observe(host);
         fit();
         let frame = 0;
         const tick = (now: number) => {
-          monster.group.rotation.y = 0.5 + Math.sin(now / 4000) * 0.35;
+          const p = roam(now);
+          holder.position.set(p.x, p.y, p.z);
+          monster.group.rotation.y = p.yaw;
+          if (p.mood !== mood && stage > 0) {
+            mood = p.mood;
+            monster.setMood(p.mood);
+          }
           monster.update(now);
           renderer.render(scene, camera);
           frame = requestAnimationFrame(tick);
@@ -72,6 +80,6 @@ export function NestDragon({ element, stage }: { element: number; stage: number 
       dead = true;
       stop();
     };
-  }, [element, stage]);
+  }, [element, stage, span, plaza]);
   return <div ref={box} className="pointer-events-none h-full w-full" data-testid="nest-dragon" />;
 }

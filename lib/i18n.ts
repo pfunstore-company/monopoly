@@ -468,9 +468,9 @@ const DICT: Record<string, { hans: string; en: string }> = {
   金塊: { hans: "金块", en: "Gold" },
   "你入場付咗門票 {n} 能量": { hans: "你入场付了门票 {n} 能量", en: "You paid a {n} Energy ticket to get in" },
   "材料獎勵：": { hans: "材料奖励：", en: "Materials won:" },
-  阿狼: { hans: "阿狼", en: "Wolfie" },
-  阿鬼: { hans: "阿鬼", en: "Ghosty" },
-  阿蝠: { hans: "阿蝠", en: "Batty" },
+  阿瓜: { hans: "阿瓜", en: "Pumpkin" },
+  阿科: { hans: "阿科", en: "Franky" },
+  阿神: { hans: "阿神", en: "Reaper" },
 };
 
 export function translate(lang: Lang, text: string, vars?: Record<string, string | number>): string {

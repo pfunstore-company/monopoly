@@ -29,15 +29,15 @@ export type Prize =
   | { kind: "house"; id: BuildingKind }
   | { kind: "materials"; stock: Stock };
 
-/** Characters: the four you start with are R; 阿狼 and 阿鬼 are SR, 阿蝠 SSR (new, drawn art to come). */
+/** Characters: the four you start with are R; 阿瓜 (pumpkin) and 阿科 (Frankenstein) are SR, 阿神 (grim reaper) SSR. */
 export const HEROES: { id: string; name: string; rarity: Rarity; avatar?: string; emoji?: string }[] = [
   { id: "vampire", name: "伯爵", rarity: "R", avatar: "/art/avatars/vampire.jpg" },
   { id: "jiangshi", name: "阿殭", rarity: "R", avatar: "/art/avatars/jiangshi.jpg" },
   { id: "mummy", name: "阿木", rarity: "R", avatar: "/art/avatars/mummy.jpg" },
   { id: "zombie", name: "阿強", rarity: "R", avatar: "/art/avatars/zombie.jpg" },
-  { id: "wolf", name: "阿狼", rarity: "SR", emoji: "🐺" },
-  { id: "ghost", name: "阿鬼", rarity: "SR", emoji: "👻" },
-  { id: "bat", name: "阿蝠", rarity: "SSR", emoji: "🦇" },
+  { id: "pumpkin", name: "阿瓜", rarity: "SR", avatar: "/art/avatars/pumpkin.jpg" },
+  { id: "franken", name: "阿科", rarity: "SR", avatar: "/art/avatars/franken.jpg" },
+  { id: "reaper", name: "阿神", rarity: "SSR", avatar: "/art/avatars/reaper.jpg" },
 ];
 /** Houses: a 房屋券 builds that building on your 領地 without materials. */
 export const HOUSES: { id: BuildingKind; rarity: Rarity }[] = [

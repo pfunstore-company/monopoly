@@ -55,12 +55,12 @@ const CAST = [
   { name: "阿殭", avatar: "/art/avatars/jiangshi.jpg", colour: "#2563EB", bot: true },
   { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#D97706", bot: true },
   { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A", bot: true },
-  // Two more guests so a 領地 can seat six; no drawn faces yet, so they show an emoji.
-  { name: "阿狼", avatar: "", colour: "#DB2777", bot: true },
-  { name: "阿鬼", avatar: "", colour: "#0891B2", bot: true },
-  { name: "阿蝠", avatar: "", colour: "#9333EA", bot: true },
+  // The three drawn from the shop (Sky 2026-10-17): 阿瓜, 阿科, 阿神.
+  { name: "阿瓜", avatar: "/art/avatars/pumpkin.jpg", colour: "#EA580C", bot: true },
+  { name: "阿科", avatar: "/art/avatars/franken.jpg", colour: "#0891B2", bot: true },
+  { name: "阿神", avatar: "/art/avatars/reaper.jpg", colour: "#9333EA", bot: true },
 ];
-const EMOJI: Record<string, string> = { 阿狼: "🐺", 阿鬼: "👻", 阿蝠: "🦇" };
+const EMOJI: Record<string, string> = {};
 
 /**
  * The four 3D characters a player can be. First come, first served: once you take one, the computer

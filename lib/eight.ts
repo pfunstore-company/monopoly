@@ -314,6 +314,8 @@ export const CHEST_POWER_ODDS = 3;
 /** Out of 10 crossroads (on top of the +1) and passes of start (on top of the pay). */
 export const CROSS_POWER_ODDS = 2;
 export const START_POWER_ODDS = 1;
+/** On the 領地 board, out of 10, coming round to the plaza deals a power card. */
+export const CLOVER_POWER_ODDS = 5;
 
 /** A power card from this landing's draw, if the odds (out of 10) say so and there's room in the hand. */
 function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[], salt = 0): TableState | null {
@@ -454,7 +456,7 @@ export function newTable(
       bankrupt: false,
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
-      powers: clover ? [] : [...START_POWERS],
+      powers: [...START_POWERS], // 領地 too (Sky 2026-10-18)
 
     })),
     deeds: {},
@@ -540,7 +542,8 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   // 三葉草 (Sky 2026-10-18): a 轉 is one whole lap — it counts when you come round to the plaza, not each roll.
   const lapDone = passedStart && state.board === "clover" ? { turnsTaken: player.turnsTaken + 1 } : {};
   const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
-  return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
+  // 領地 has no cards lying on the squares, so coming round to the plaza deals one more often (Sky 2026-10-18).
+  return passedStart ? (drawPower(moved, seat, state.board === "clover" ? CLOVER_POWER_ODDS : START_POWER_ODDS, events, 2) ?? moved) : moved;
 }
 
 /** Walk the steps left, stopping at a fork to ask. */

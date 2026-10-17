@@ -42,25 +42,17 @@ export type IslandArt = {
   decor: { kind: DecorKind; spot: number; w: number }[];
 };
 
-/** 領地 buildings (Sky's drawings 2026-10-18): 樹林 wood, 石屋 stone, 礦場 mine — four levels each, in /art/islands/build2. */
+/** 領地 buildings (Sky's drawings 2026-10-18): 樹林 wood, 石屋 stone, 礦場 mine — four levels each, in /art/islands/build3: Sky 2026-10-18 went to 高樓大廈, one set for every island. */
 export type BuildKind = "wood" | "stone" | "mine";
 /**
  * Each building picture (Sky 2026-10-18: the building sits on its own round stone, which covers the painted square):
  * height ÷ width, the stone's width as a share of the picture, and the stone's middle (0–1 across, 0–1 down).
  */
 export const BUILD_ART: Record<string, { aspect: number; plat: number; cx: number; cy: number }> = {
-  mine1: { aspect: 0.7489, plat: 0.9005, cx: 0.4977, cy: 0.4286 },
-  mine2: { aspect: 0.9216, plat: 0.9068, cx: 0.4979, cy: 0.5397 },
-  mine3: { aspect: 1.0217, plat: 0.9094, cx: 0.5, cy: 0.5921 },
-  mine4: { aspect: 1.0424, plat: 0.9134, cx: 0.4992, cy: 0.6103 },
-  stone1: { aspect: 0.8899, plat: 0.8989, cx: 0.4989, cy: 0.5182 },
-  stone2: { aspect: 0.9219, plat: 0.9072, cx: 0.4979, cy: 0.5403 },
-  stone3: { aspect: 1.0285, plat: 0.9146, cx: 0.4991, cy: 0.5933 },
-  stone4: { aspect: 1.0469, plat: 0.9149, cx: 0.4991, cy: 0.6109 },
-  wood1: { aspect: 0.9307, plat: 0.8984, cx: 0.5, cy: 0.5382 },
-  wood2: { aspect: 0.8966, plat: 0.9052, cx: 0.5, cy: 0.5251 },
-  wood3: { aspect: 1.056, plat: 0.9135, cx: 0.4997, cy: 0.6078 },
-  wood4: { aspect: 0.9835, plat: 0.9094, cx: 0.4975, cy: 0.5912 },
+  tower1: { aspect: 0.8267, plat: 0.9627, cx: 0.4973, cy: 0.6281 },
+  tower2: { aspect: 1.3253, plat: 0.9627, cx: 0.5, cy: 0.768 },
+  tower3: { aspect: 1.8191, plat: 0.9628, cx: 0.4973, cy: 0.831 },
+  tower4: { aspect: 2.2098, plat: 0.9611, cx: 0.4987, cy: 0.8613 },
 };
 
 /** 裝飾 (Sky's drawings 2026-10-09); code moves them — the flag waves, the balloon floats, the airship sails. */

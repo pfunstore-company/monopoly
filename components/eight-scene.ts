@@ -1040,7 +1040,7 @@ export function createBoardScene(
   const buildTex: Record<string, any> = {};
   const buildPic = (file: string) => {
     if (!buildTex[file]) {
-      const t = new T.TextureLoader().load(`/art/islands/build2/${file}.webp`);
+      const t = new T.TextureLoader().load(`/art/islands/build3/${file}.webp`);
       t.encoding = T.sRGBEncoding;
       buildTex[file] = t;
     }
@@ -1049,9 +1049,9 @@ export function createBoardScene(
   function paintedBuilding(key: string, level: number, colour: string) {
     const i = Number(/^o(\d+)$/.exec(key)?.[1] ?? 0);
     const isle = CLOVER_ISLE;
-    if (!i || !isle.zones || !isle.squares[i]) return null;
-    const kind = isle.zones[Math.min(2, Math.floor((i - 1) / 6))];
-    const name = `${kind}${Math.max(1, Math.min(4, level))}`;
+    if (!i || !isle.squares[i]) return null;
+    // 高樓大廈 (Sky 2026-10-18): shop → flats → office → skyscraper; the roofs and stripes take the owner's colour.
+    const name = `tower${Math.max(1, Math.min(4, level))}`;
     const art = BUILD_ART[name];
     // Squares nearer the front are painted a little bigger.
     const ring = isle.squares.slice(1), ys = ring.map((p) => p.y), top = Math.min(...ys), bottom = Math.max(...ys);

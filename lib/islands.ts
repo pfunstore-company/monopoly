@@ -24,6 +24,8 @@ export type IslandArt = {
   smoke?: At[];
   /** Firelight and glowing runes, pulsing: centre, radius, colour. */
   glows?: (At & { r: number; colour: string })[];
+  /** What grows beside the squares of each area once bought (left, back, right; Sky 2026-10-18). */
+  zones?: [BuildKind, BuildKind, BuildKind];
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -37,6 +39,17 @@ export type IslandArt = {
   /** What stands on the spots (empty until decorations are bought). */
   decor: { kind: DecorKind; spot: number; w: number }[];
 };
+
+/** 領地 buildings (Sky's drawings 2026-10-18): 樹林 wood, 石屋 stone, 礦場 mine — four levels each, in /art/islands/build. */
+export type BuildKind = "wood" | "stone" | "mine";
+/** Height ÷ width of each building picture. */
+export const BUILD_ASPECT: Record<string, number> = {
+  wood1: 1.385, wood2: 0.906, wood3: 1.049, wood4: 0.919,
+  stone1: 0.925, stone2: 1.016, stone3: 1.06, stone4: 1.19,
+  mine1: 0.803, mine2: 0.95, mine3: 1.026, mine4: 1.115,
+};
+/** Width of a building on the island at each level, in the island picture's pixels (a square is about 60 across). */
+export const BUILD_W = [0, 44, 56, 66, 78];
 
 /** 裝飾 (Sky's drawings 2026-10-09); code moves them — the flag waves, the balloon floats, the airship sails. */
 export type DecorKind = "windmill" | "tower" | "dragon" | "balloon" | "airship";
@@ -56,6 +69,7 @@ export const ISLANDS: IslandArt[] = [
     w: 941,
     h: 1360,
     top: 120,
+    zones: ["stone", "wood", "mine"],
     tiles: "painted",
     squares: [
       { x: 472, y: 965 },
@@ -99,6 +113,7 @@ export const ISLANDS: IslandArt[] = [
     top: 215,
     left: 86,
     flow: "lava",
+    zones: ["wood", "stone", "mine"],
     tiles: "painted",
     squares: [
       { x: 388, y: 730 },
@@ -124,6 +139,7 @@ export const ISLANDS: IslandArt[] = [
     h: 1378,
     top: 128,
     left: 88,
+    zones: ["wood", "stone", "mine"],
     tiles: "painted",
     squares: [
       { x: 387, y: 865 },
@@ -157,6 +173,7 @@ export const ISLANDS: IslandArt[] = [
     h: 1014,
     top: 297,
     left: 135,
+    zones: ["wood", "stone", "mine"],
     tiles: "painted",
     squares: [
       { x: 336, y: 723 },

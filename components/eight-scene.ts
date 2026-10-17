@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
+import { BUILD_ASPECT, BUILD_W, DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
 import { buildMonster } from "@/components/monster";
 import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
@@ -1035,6 +1035,63 @@ export function createBoardScene(
   const targets: Record<string, any> = {};
   /** Sky's painted squares (2026-10-09): players stand on the picture; a bought square gets a coloured disc with
    *  ×1…×4 lying on it, and the square a move ends on glows. */
+  // 領地 buildings (Sky 2026-10-18): what was bought grows beside its square — 樹林, 石屋 or 礦場 by area, bigger
+  // with each level — standing up to the camera on the outer side of the path, with a little flag in the owner's colour.
+  const BUILD_SCALE = 1.4;
+  const buildTex: Record<string, any> = {};
+  const buildPic = (name: string) => {
+    if (!buildTex[name]) {
+      const t = new T.TextureLoader().load(`/art/islands/build/${name}.webp`);
+      t.encoding = T.sRGBEncoding;
+      buildTex[name] = t;
+    }
+    return buildTex[name];
+  };
+  function paintedBuilding(key: string, level: number, colour: string) {
+    const i = Number(/^o(\d+)$/.exec(key)?.[1] ?? 0);
+    const isle = CLOVER_ISLE;
+    if (!i || !isle.zones || !isle.squares[i]) return null;
+    const kind = isle.zones[Math.min(2, Math.floor((i - 1) / 6))];
+    const lv = Math.max(1, Math.min(4, level));
+    const name = `${kind}${lv}`;
+    // Out from the middle of the board, beside the square.
+    const sq = isle.squares[i], ring = isle.squares.slice(1);
+    const cx = ring.reduce((a, p) => a + p.x, 0) / ring.length, cy = ring.reduce((a, p) => a + p.y, 0) / ring.length;
+    let dx = sq.x - cx, dy = (sq.y - cy) * 1.6;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const [x0, z0] = isleAt(sq.x, sq.y), [x1, z1] = isleAt(sq.x + dx * 50, sq.y + dy * 30 - 6);
+    const g = new T.Group();
+    g.position.set(x1 - x0, TOP, z1 - z0);
+    const lean = new T.Group();
+    lean.rotation.x = -CLOVER_ELEV;
+    g.add(lean);
+    const w = BUILD_W[lv] * CLOVER_PX * BUILD_SCALE, h = w * (BUILD_ASPECT[name] ?? 1);
+    const geo = new T.PlaneGeometry(w, h);
+    geo.translate(0, h / 2, 0);
+    const pic = new T.Mesh(geo, new T.MeshBasicMaterial({ map: buildPic(name), transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
+    pic.renderOrder = 2;
+    lean.add(pic);
+    // The owner's flag on a thin pole at the top corner.
+    const pole = new T.Mesh(new T.PlaneGeometry(w * 0.03, h * 0.32), new T.MeshBasicMaterial({ color: 0x5b4636, depthWrite: false, toneMapped: false }));
+    pole.position.set(w * 0.36, h * 0.92 + h * 0.16, 0.002);
+    pole.renderOrder = 3;
+    lean.add(pole);
+    const flagShape = new T.Shape();
+    flagShape.moveTo(0, 0);
+    flagShape.lineTo(w * 0.2, -h * 0.06);
+    flagShape.lineTo(0, -h * 0.12);
+    const flag = new T.Mesh(new T.ShapeGeometry(flagShape), new T.MeshBasicMaterial({ color: new T.Color(colour), side: T.DoubleSide, depthWrite: false, toneMapped: false }));
+    flag.position.set(w * 0.36 + w * 0.015, h * 0.92 + h * 0.32, 0.003);
+    flag.renderOrder = 3;
+    lean.add(flag);
+    const seed = Math.random() * 6;
+    islandAnims.push((now) => {
+      if (flag.parent) flag.scale.x = 0.82 + 0.18 * Math.sin(now / 260 + seed);
+    });
+    return g;
+  }
   function makePaintedTile(key: string, x: number, z: number, plaza: boolean) {
     const group = new T.Group();
     group.position.set(x, 0, z);
@@ -2122,12 +2179,20 @@ export function createBoardScene(
           badge.visible = true;
           badge.userData.base = badge.userData.base ?? badge.scale.clone();
         }
+        // A building grows beside the square (Sky 2026-10-18); the ×1…×4 badge stays only where there is none.
+        const house = CLOVER_ISLE.tiles === "painted" ? paintedBuilding(key, level, colours[seat]) : null;
+        if (house) {
+          if (tile.house) tile.group.remove(tile.house);
+          tile.group.add(house);
+          tile.house = house;
+          house.scale.set(1, 0.01, 1);
+          if (badge) badge.visible = false;
+        }
         await tween(600, (k) => {
           m.color.copy(from).lerp(to, Math.min(1, k * 1.5));
-          if (badge) {
-            const s = k < 0.7 ? (k / 0.7) * 1.25 : 1.25 - ((k - 0.7) / 0.3) * 0.25;
-            badge.scale.set(s, s, 1);
-          }
+          const s = k < 0.7 ? (k / 0.7) * 1.25 : 1.25 - ((k - 0.7) / 0.3) * 0.25;
+          if (badge && !house) badge.scale.set(s, s, 1);
+          if (house) house.scale.set(Math.max(0.01, 0.6 + 0.4 * Math.min(1, k * 1.4)), Math.max(0.01, s), 1);
         });
         return;
       }

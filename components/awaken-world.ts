@@ -118,7 +118,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         const dd = (p.x - x) ** 2 + (p.z - z) ** 2;
         if (dd < bd) { bd = dd; best = i; }
       });
-      const nearPlaza = Math.hypot(x - plazaAt.x, z - plazaAt.z) < 1.9;
+      const nearPlaza = Math.hypot(x - plazaAt.x, z - plazaAt.z) < 1.2;
       const pad = nearPlaza || (inner && Math.sqrt(bd) > 1.35) ? -1 : best;
       const pal = pad >= 0 ? theme.zones[Math.floor(pad / 6)].ground : theme.middle.ground;
       const edge = inner ? 1 : Math.max(0, Math.min(1, (reach - d) / 1.6));
@@ -191,7 +191,23 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     root.add(g);
     return rim;
   };
-  makePad(plazaAt, 1.25);
+  // 起點 (Sky 2026-10-19: the big round plaza looked out of place): a pad a little bigger than the rest, with a gold star.
+  const startRim = makePad(plazaAt, 0.62);
+  startRim.material.color.copy(lin(0xffd23f));
+  startRim.material.emissive = lin(0xffb000);
+  startRim.material.emissiveIntensity = 0.6;
+  {
+    const star = new T.Shape();
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? 0.16 : 0.38, a = (k / 10) * Math.PI * 2 + Math.PI / 2;
+      if (k) star.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      else star.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    const m = new T.Mesh(new T.ShapeGeometry(star), new T.MeshStandardMaterial({ color: lin(0xffd23f), emissive: lin(0xffb000), emissiveIntensity: 0.5, roughness: 0.35, metalness: 0.4 }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(plazaAt.x, TOP + 0.006, plazaAt.z);
+    root.add(m);
+  }
   pads.forEach((p) => padRims.push(makePad(p, 0.46)));
   const roadMat = new T.MeshBasicMaterial({ color: lin(theme.road), transparent: true, opacity: 0.55, depthWrite: false });
   {
@@ -270,7 +286,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     plots.some((p: any) => Math.hypot(p.x - x, p.z - z) < 0.55) ||
     marvelAt.some((p: any) => Math.hypot(p.x - x, p.z - z) < 1.4) ||
     Math.hypot(middleAt.x - x, middleAt.z - z) < 1.7 ||
-    Math.hypot(plazaAt.x - x, plazaAt.z - z) < 1.9;
+    Math.hypot(plazaAt.x - x, plazaAt.z - z) < 1.1;
   cells.forEach((c) => {
     const r = hash(c.x, c.z, 5);
     if (r > (c.pad === -1 ? 0.1 : 0.36) || keepClear(c.x, c.z)) return;

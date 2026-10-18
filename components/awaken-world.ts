@@ -91,14 +91,14 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
   };
   // Along the front the outside is toward the camera, so those buildings go inside the ring instead.
   const plots = pads.map((p) => {
-    const front = p.z - centre.z > 2.6;
+    const front = p.z - centre.z > 3;
     const dir = front ? new T.Vector3(centre.x - p.x, 0, centre.z - p.z).normalize() : outward(p);
-    return p.clone().addScaledVector(dir, 0.95);
+    return p.clone().addScaledVector(dir, 1.3); // Sky 2026-10-19: a little gap between the building and the lot
   });
   const marvelAt = [0, 1, 2].map((z) => {
     const six = pads.slice(z * 6, z * 6 + 6);
     const c = six.reduce((s, p) => s.add(p), new T.Vector3()).multiplyScalar(1 / 6);
-    return c.addScaledVector(outward(c), 2.3);
+    return c.addScaledVector(outward(c), 2.6);
   });
   const middleAt = new T.Vector3(centre.x, 0, centre.z + 0.6);
 

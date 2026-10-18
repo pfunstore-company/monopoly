@@ -70,30 +70,20 @@ export const DECOR_DIR = "/art/islands/decor/";
  * rectangle — start at the front middle, then up the left, across the back and down the right.
  */
 function ringSquares(): At[] {
-  const halfW = 3.5, halfD = 4.4, r = 1.7, cz = 0.2; // world units
-  const sx = halfW - r, sz = halfD - r;
-  // Walk the outline clockwise seen from above, starting at the front middle (+z is the front).
-  const segs: { len: number; at: (t: number) => [number, number] }[] = [
-    { len: sx, at: (t) => [-t * sx, halfD] },
-    { len: (Math.PI / 2) * r, at: (t) => [-sx - r * Math.sin(t * Math.PI / 2), sz + r * Math.cos(t * Math.PI / 2)] },
-    { len: 2 * sz, at: (t) => [-halfW, sz - t * 2 * sz] },
-    { len: (Math.PI / 2) * r, at: (t) => [-sx - r * Math.cos(t * Math.PI / 2), -sz - r * Math.sin(t * Math.PI / 2)] },
-    { len: 2 * sx, at: (t) => [-sx + t * 2 * sx, -halfD] },
-    { len: (Math.PI / 2) * r, at: (t) => [sx + r * Math.sin(t * Math.PI / 2), -sz - r * Math.cos(t * Math.PI / 2)] },
-    { len: 2 * sz, at: (t) => [halfW, -sz + t * 2 * sz] },
-    { len: (Math.PI / 2) * r, at: (t) => [sx + r * Math.cos(t * Math.PI / 2), sz + r * Math.sin(t * Math.PI / 2)] },
-    { len: sx, at: (t) => [sx - t * sx, halfD] },
-  ];
-  const total = segs.reduce((s, g) => s + g.len, 0);
-  const out: At[] = [];
-  for (let i = 0; i < 19; i++) {
-    let d = (i / 19) * total;
-    let seg = segs[0];
-    for (seg of segs) {
-      if (d <= seg.len) break;
-      d -= seg.len;
-    }
-    const [x, z] = seg.at(Math.min(1, d / seg.len));
+  // 圓形 (Sky 2026-10-19): an oval, a little longer front to back so it fills a phone held upright.
+  const halfW = 3.7, halfD = 4.7, cz = 0.2; // world units
+  const N = 720, pts: [number, number][] = [];
+  for (let k = 0; k <= N; k++) {
+    const a = (k / N) * Math.PI * 2; // 0 = the front middle, going round by the left
+    pts.push([-halfW * Math.sin(a), halfD * Math.cos(a)]);
+  }
+  const lens = [0];
+  for (let k = 1; k <= N; k++) lens.push(lens[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+  const total = lens[N], out: At[] = [];
+  for (let i = 0, k = 0; i < 19; i++) {
+    const want = (i / 19) * total;
+    while (lens[k + 1] < want) k++;
+    const [x, z] = pts[k];
     // world → the picture's pixels (see cloverAt in components/eight-scene)
     out.push({ x: Math.round(x * 75 + 476), y: Math.round((z + cz) * 75 * Math.sin((50 * Math.PI) / 180) + 680 - 120) });
   }
@@ -116,9 +106,9 @@ export const ISLANDS: IslandArt[] = [
     squareW: 60,
     awaken: "space",
     tiles: "painted",
-    // 大富翁 ring (Sky 2026-10-19): the start at the front, 18 lots evenly round a rounded rectangle.
+    // 大富翁 ring (Sky 2026-10-19): the start at the front, 18 lots evenly round an oval.
     squares: ringSquares(),
-    nest: { x: 476, y: 824, w: 110 },
+    nest: { x: 476, y: 836, w: 110 },
     falls: [],
     spots: [],
     decor: [],

@@ -7,10 +7,11 @@
  */
 import type { Stock } from "@/lib/realm";
 
-export type Rarity = "N" | "R" | "SR" | "SSR";
+/** UR is only for 特別卡 (Sky 2026-10-18); the character pool tops out at SSR. */
+export type Rarity = "N" | "R" | "SR" | "SSR" | "UR";
 export const RARITIES: readonly Rarity[] = ["SSR", "SR", "R", "N"];
 /** Chance of each rarity per draw, in percent (shown on the 機率 page). */
-export const ODDS: Record<Rarity, number> = { SSR: 1, SR: 9, R: 30, N: 60 };
+export const ODDS: Record<Rarity, number> = { UR: 0, SSR: 1, SR: 9, R: 30, N: 60 };
 /** The 50th draw without an SSR is an SSR. */
 export const PITY = 50;
 /** Prices in 能量 (table units). Ten at once costs nine and holds at least one SR or better. */
@@ -25,15 +26,27 @@ export const AD_ENERGY = 20;
  * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each
  * used once and then gone. They replace the old 房屋券 and materials.
  */
-export type SpecialId = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage";
-export const SPECIALS: { id: SpecialId; name: string; emoji: string; what: string }[] = [
+export type SpecialId = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | "takeover" | "tornado" | "rewind";
+export const SPECIALS: { id: SpecialId; name: string; emoji: string; what: string; ur?: true }[] = [
   { id: "dragon", name: "龍息", emoji: "🐉", what: "龍飛出嚟燒走對手一塊地，變返冇人擁有" },
   { id: "meteor", name: "天降隕石", emoji: "☄️", what: "揀一個區，對手喺嗰區嘅地全部降一級" },
   { id: "blackhole", name: "黑洞", emoji: "🌀", what: "全部對手被吸走，送返起點" },
   { id: "goldroad", name: "黃金之路", emoji: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
   { id: "iceage", name: "冰河時代", emoji: "❄️", what: "全部對手結冰，停一轉" },
+  // UR (Sky 2026-10-18): stronger than SSR, 3% of the special pool, one per game at most.
+  { id: "takeover", name: "霸王收購", emoji: "👑", what: "搶走最有錢對手最值錢嘅三塊地（佢有護盾就擋到）", ur: true },
+  { id: "tornado", name: "末日龍捲風", emoji: "🌪️", what: "對手全部樓降一級，你自己全部樓升一級", ur: true },
+  { id: "rewind", name: "時光倒流", emoji: "⏳", what: "今轉再擲多兩次，行過嘅冇人地全部變你嘅", ur: true },
 ];
 export const SPECIAL_IDS = SPECIALS.map((c) => c.id);
+export const UR_IDS = SPECIALS.filter((c) => c.ur).map((c) => c.id);
+export const SSR_IDS = SPECIALS.filter((c) => !c.ur).map((c) => c.id);
+/** Chance (percent) a 特別卡 draw is a UR card, shared equally among the UR cards. */
+export const UR_ODDS = 3;
+/** Percent chance of each 特別卡 in a draw (for the 機率 page). */
+export const specialOdds = (id: SpecialId): number =>
+  Math.round(((UR_IDS.includes(id) ? UR_ODDS / UR_IDS.length : (100 - UR_ODDS) / SSR_IDS.length) * 100)) / 100;
+export const isUrCard = (id: SpecialId) => UR_IDS.includes(id);
 /** At most this many 特別卡 go into one game. */
 export const MAX_SPECIALS = 3;
 /** Old materials turn into 特別卡: one card for every this many pieces. */
@@ -75,6 +88,8 @@ export type Collection = {
   deals: { day: string; bought: string[] };
   /** Rewarded ads watched today. */
   ads: { day: string; watched: number };
+  /** 測試期 (Sky: nothing locked while testing): one of each UR card given once. */
+  urGift?: boolean;
 };
 
 export function newCollection(): Collection {
@@ -117,8 +132,12 @@ function prizeOf(rarity: Rarity, r: number): Prize {
   return { kind: "hero", id: list[Math.floor(r * list.length) % list.length].id };
 }
 
+/** A 特別卡 from the pool: UR_ODDS% a UR card, otherwise one of the SSR ones. */
 export function randomSpecial(r: number): SpecialId {
-  return SPECIAL_IDS[Math.floor(r * SPECIAL_IDS.length) % SPECIAL_IDS.length];
+  const ur = UR_ODDS / 100;
+  if (r < ur) return UR_IDS[Math.floor((r / ur) * UR_IDS.length) % UR_IDS.length];
+  const k = (r - ur) / (1 - ur);
+  return SSR_IDS[Math.floor(k * SSR_IDS.length) % SSR_IDS.length];
 }
 
 export function addSpecial(c: Collection, id: SpecialId, n = 1): Collection {
@@ -138,7 +157,7 @@ export function draw(c: Collection, pool: PoolId, times: 1 | 10, random: () => n
     const pulls = Array.from({ length: times }, () => {
       const id = randomSpecial(random());
       next = addSpecial(next, id);
-      return { rarity: "SSR" as Rarity, prize: { kind: "special" as const, id }, duplicate: false };
+      return { rarity: (isUrCard(id) ? "UR" : "SSR") as Rarity, prize: { kind: "special" as const, id }, duplicate: false };
     });
     return { pulls, collection: next };
   }
@@ -191,7 +210,7 @@ export type Deal = { id: string; prize: Prize; price: number; was: number };
 export function dealsOf(day: string): Deal[] {
   let h = 2166136261;
   for (let k = 0; k < day.length; k++) h = Math.imul(h ^ day.charCodeAt(k), 16777619) >>> 0;
-  const special = SPECIAL_IDS[h % SPECIAL_IDS.length];
+  const special = SSR_IDS[h % SSR_IDS.length];
   const hero = HEROES.filter((x) => x.rarity === "SR")[(h >>> 3) % 2];
   return [
     { id: `special-${special}`, prize: { kind: "special", id: special }, price: 150, was: 250 },
@@ -214,6 +233,8 @@ export function parseCollection(value: unknown): Collection {
   for (const h of HEROES) if (raw.heroes && num(raw.heroes[h.id]) > 0) heroes[h.id] = num(raw.heroes[h.id]);
   const specials: Collection["specials"] = {};
   for (const id of SPECIAL_IDS) if (raw.specials && num(raw.specials[id]) > 0) specials[id] = num(raw.specials[id]);
+  // 測試期: everyone gets one of each UR card once, to try them.
+  if (raw.urGift !== true) for (const id of UR_IDS) specials[id] = (specials[id] ?? 0) + 1;
   const str = (s: unknown) => (typeof s === "string" ? s : null);
   return {
     heroes,
@@ -226,6 +247,7 @@ export function parseCollection(value: unknown): Collection {
     monthClaimed: str(raw.monthClaimed),
     deals: { day: str(raw.deals?.day) ?? "", bought: Array.isArray(raw.deals?.bought) ? raw.deals!.bought.filter((x) => typeof x === "string") : [] },
     ads: { day: str(raw.ads?.day) ?? "", watched: num(raw.ads?.watched) },
+    urGift: true,
   };
 }
 export const COLLECTION_KEY = "boolionaire-collection-v1";

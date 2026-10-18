@@ -3,7 +3,7 @@
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
 import { EightBoard, seatsFor } from "@/components/table-game";
-import { SPECIAL_CARDS, SPECIALS_IN, type Special } from "@/lib/eight";
+import { SPECIAL_CARDS, SPECIALS_IN, SSR_CARDS, isUr, type Special } from "@/lib/eight";
 import { SPECIALS } from "@/lib/shop";
 import { ISLANDS } from "@/lib/islands";
 import { loadCollection, loadNestLevel, loadPet, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
@@ -69,7 +69,7 @@ type Game = { id: number; kind: "host"; pick: number; specials: Special[] } | { 
 function withSpecials(players: ReturnType<typeof seatsFor>, mine: Special[]) {
   return players.map((p, i) => ({
     ...p,
-    specials: i === 0 ? mine : [0, 1].map(() => SPECIAL_CARDS[Math.floor(Math.random() * SPECIAL_CARDS.length)]),
+    specials: i === 0 ? mine : [0, 1].map(() => SSR_CARDS[Math.floor(Math.random() * SSR_CARDS.length)]),
   }));
 }
 
@@ -453,7 +453,8 @@ function CharacterPick({ onPick, onClose }: { onPick: (pick: number, specials: S
         </div>
         {/* 特別卡 to bring in (Sky 2026-10-18): up to three, used up when the game starts. */}
         <p className="text-center text-sm font-black">{t("帶特別卡入場（最多 {n} 張）", { n: SPECIALS_IN })}</p>
-        <div className="grid grid-cols-5 gap-1.5" data-testid="special-pick">
+        <p className="-mt-2 text-center text-[11px] font-bold text-[#475569]">{t("UR 卡每局最多帶一張")}</p>
+        <div className="grid grid-cols-4 gap-1.5" data-testid="special-pick">
           {SPECIAL_CARDS.map((id) => {
             const have = held[id] ?? 0, n = count(id);
             return (
@@ -462,13 +463,14 @@ function CharacterPick({ onPick, onClose }: { onPick: (pick: number, specials: S
                 type="button"
                 disabled={have === 0}
                 onClick={() =>
-                  setChosen((c) => (n < have && c.length < SPECIALS_IN ? [...c, id] : n > 0 ? c.filter((x, i) => i !== c.lastIndexOf(id) || x !== id) : c))
+                  setChosen((c) => (n < have && c.length < SPECIALS_IN && !(isUr(id) && c.some(isUr)) ? [...c, id] : n > 0 ? c.filter((x, i) => i !== c.lastIndexOf(id) || x !== id) : c))
                 }
                 className={cn("relative flex cursor-pointer flex-col items-center rounded-xl p-0.5 disabled:cursor-default disabled:opacity-35", n > 0 && "bg-[#FFF8D6] ring-2 ring-[#FBD000]")}
               >
                 <img src={`/art/specials/${id}.webp`} alt="" className="aspect-square w-full rounded-lg border-2 border-[#FBD000] object-cover" />
                 <span className="text-[10px] font-black leading-tight">{t(SPECIALS.find((c) => c.id === id)?.name ?? "")}</span>
                 <span className="text-[9px] font-bold text-[#3B5BA9]">×{have}</span>
+                {isUr(id) ? <span className="absolute left-0.5 top-0.5 rounded bg-gradient-to-r from-[#FF3B3B] to-[#A855F7] px-1 text-[9px] font-black text-white">UR</span> : null}
                 {n > 0 ? <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-[#E52521] text-[11px] font-black text-white">{n}</span> : null}
               </button>
             );

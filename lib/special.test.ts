@@ -38,3 +38,42 @@ describe("特別卡", () => {
     assert.ok(!t.seats[0].goldRoad);
   });
 });
+
+describe("UR 特別卡", () => {
+  it("only one UR card goes into a game", () => {
+    const t = newTable([seat(0, ["takeover", "rewind", "dragon", "meteor"]), seat(1)], {}, "clover");
+    assert.deepEqual(t.seats[0].powers, ["takeover", "dragon", "meteor"]);
+  });
+  it("霸王收購 takes the richest opponent's three best lots", () => {
+    let t = table(["takeover"]);
+    t = { ...t, deeds: { o1: { owner: 1, level: 4 }, o2: { owner: 1, level: 3 }, o3: { owner: 1, level: 2 }, o4: { owner: 1, level: 1 }, o9: { owner: 2, level: 1 } } };
+    t = reduceTable(t, { type: "power", index: 0 });
+    assert.deepEqual(["o1", "o2", "o3", "o4", "o9"].map((k) => t.deeds[k].owner), [0, 0, 0, 1, 2]);
+    assert.equal(t.deeds.o1.level, 4);
+  });
+  it("霸王收購 is stopped by a 護盾", () => {
+    let t = table(["takeover"]);
+    t = { ...t, deeds: { o1: { owner: 1, level: 2 } }, seats: t.seats.map((s, i) => (i === 1 ? { ...s, powers: ["shield"] } : s)) };
+    t = reduceTable(t, { type: "power", index: 0 });
+    assert.equal(t.deeds.o1.owner, 1);
+    assert.deepEqual(t.seats[1].powers, []);
+    assert.deepEqual(t.seats[0].powers, []);
+  });
+  it("末日龍捲風 drops theirs a level (not below one) and raises yours", () => {
+    let t = table(["tornado"]);
+    t = { ...t, deeds: { o1: { owner: 1, level: 3 }, o2: { owner: 2, level: 1 }, o3: { owner: 0, level: 2 } } };
+    t = reduceTable(t, { type: "power", index: 0 });
+    assert.deepEqual(["o1", "o2", "o3"].map((k) => t.deeds[k].level), [2, 1, 3]);
+  });
+  it("時光倒流 gives two more rolls, taking empty lots walked over", () => {
+    let t = table(["rewind"]);
+    t = reduceTable(t, { type: "power", index: 0 });
+    t = reduceTable(t, { type: "roll", dice: [2, 1] });
+    assert.equal(t.current, 0);
+    t = reduceTable(t, { type: "roll", dice: [2, 1] });
+    assert.equal(t.current, 0);
+    t = reduceTable(t, { type: "roll", dice: [2, 1] });
+    assert.notEqual(t.current, 0);
+    assert.deepEqual(["o1", "o2", "o3", "o4", "o5", "o6"].map((k) => t.deeds[k]?.owner), [0, 0, 0, 0, 0, 0]);
+  });
+});

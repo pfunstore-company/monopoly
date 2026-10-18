@@ -111,6 +111,10 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
   blackhole: { name: "黑洞", icon: "🌀", what: "全部對手被吸走，送返起點" },
   goldroad: { name: "黃金之路", icon: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
   iceage: { name: "冰河時代", icon: "❄️", what: "全部對手結冰，停一轉" },
+  // UR (Sky 2026-10-18)
+  takeover: { name: "霸王收購", icon: "👑", what: "搶走最有錢對手最值錢嘅三塊地（佢有護盾就擋到）" },
+  tornado: { name: "末日龍捲風", icon: "🌪️", what: "對手全部樓降一級，你自己全部樓升一級" },
+  rewind: { name: "時光倒流", icon: "⏳", what: "今轉再擲多兩次，行過嘅冇人地全部變你嘅" },
 };
 
 /** Cards with a drawn picture; the newer ones show their emoji until they get one. */
@@ -474,6 +478,12 @@ export function EightBoard({
             void scene.floatText(event.seat, "✨", "#FBD000");
             await scene.own(event.key, event.seat, 1);
             break;
+          case "guarded":
+            play("smash");
+            say("{name} 用護盾擋住咗霸王收購！", { name: who(event.by) });
+            void scene.floatText(event.by, "🛡️", "#38BDF8");
+            await scene.wait(900);
+            break;
           case "setDone":
             play("build");
             say("{name} 統一咗成個區！租金 ×2", { name: who(event.seat) });
@@ -631,6 +641,29 @@ export function EightBoard({
               play("smash");
               juice("medium", undefined, window.innerHeight * 0.45);
               await Promise.all((event.targets ?? []).map((o) => Promise.all([scene.floatText(o, "❄️", "#38BDF8"), scene.sparkle(o)])));
+            } else if (event.power === "takeover") {
+              play("lucky");
+              juice("large", undefined, window.innerHeight * 0.45);
+              for (const [key, level] of Object.entries(event.levels ?? {})) {
+                await scene.blast(key);
+                await scene.own(key, event.seat, level);
+              }
+              if (Object.keys(event.levels ?? {}).length) scene.cheer(event.seat);
+            } else if (event.power === "tornado") {
+              play("smash");
+              juice("large", undefined, window.innerHeight * 0.45);
+              await Promise.all(
+                Object.entries(event.levels ?? {}).map(async ([key, level]) => {
+                  const owner = state.deeds[key]?.owner;
+                  if (owner !== event.seat) await scene.blast(key);
+                  if (owner !== undefined) await scene.own(key, owner, level);
+                }),
+              );
+              scene.cheer(event.seat);
+            } else if (event.power === "rewind") {
+              play("lucky");
+              say("{name} 時光倒流：今轉再擲多兩次！", { name: who(event.seat) });
+              await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
             } else if (event.power === "goldroad") {
               play("lucky");
               await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);

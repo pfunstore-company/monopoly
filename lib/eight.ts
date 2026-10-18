@@ -259,6 +259,8 @@ export type Seat = {
   perkUsed?: boolean;
   /** 黃金之路: the next walk takes every empty lot it passes. */
   goldRoad?: boolean;
+  /** 時光倒流: extra rolls still to come this turn. */
+  rewind?: number;
   /** 冰河時代: misses the next turn. */
   frozen?: boolean;
 };
@@ -292,9 +294,27 @@ export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" |
  * 黃金之路: on your next roll every empty lot you walk over becomes yours · iceage 冰河時代: every opponent misses
  * their next turn.
  */
-export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage";
-export const SPECIAL_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "goldroad", "iceage"];
+export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | UrCard;
+/**
+ * UR 特別卡 (Sky 2026-10-18), stronger than SSR: takeover 霸王收購 takes the richest opponent's three best lots
+ * (their 護盾 blocks it) · tornado 末日龍捲風: every opponent building drops a level (never below one) and every
+ * one of yours goes up one · rewind 時光倒流: two more rolls this turn, and every empty lot walked over is yours.
+ * At most one UR card goes into a game; bots never have one.
+ */
+export type UrCard = "takeover" | "tornado" | "rewind";
+export const UR_CARDS: readonly UrCard[] = ["takeover", "tornado", "rewind"];
+export const SPECIAL_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "goldroad", "iceage", ...UR_CARDS];
+/** The SSR ones (what bots may bring). */
+export const SSR_CARDS: readonly Special[] = SPECIAL_CARDS.filter((c) => !isUr(c));
 export const SPECIALS_IN = 3;
+export function isUr(power: Power): power is UrCard {
+  return (UR_CARDS as readonly string[]).includes(power);
+}
+/** What a player may bring in: up to SPECIALS_IN cards, at most one of them UR. */
+export function specialsIn(chosen: readonly Special[]): Special[] {
+  let ur = false;
+  return chosen.filter((c) => (isUr(c) ? !ur && (ur = true) : true)).slice(0, SPECIALS_IN);
+}
 export function isSpecial(power: Power): power is Special {
   return (SPECIAL_CARDS as readonly string[]).includes(power);
 }
@@ -352,6 +372,8 @@ export type TablePhase = "roll" | "fork" | "over";
 export type TableEvent =
   | { kind: "turn"; seat: number }
   | { kind: "again"; seat: number }
+  /** 霸王收購 stopped by the target's 護盾. */
+  | { kind: "guarded"; seat: number; by: number }
   | { kind: "freed"; seat: number }
   | { kind: "step"; seat: number; to: Spot; passedStart: boolean }
   | { kind: "fork"; seat: number }
@@ -478,7 +500,7 @@ export function newTable(
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
       // 領地 (Sky 2026-10-18): the 特別卡 each player brought in (up to three) instead.
-      powers: clover ? [...(specials ?? [])].slice(0, SPECIALS_IN) : [...START_POWERS],
+      powers: clover ? specialsIn(specials ?? []) : [...START_POWERS],
 
     })),
     deeds: {},
@@ -810,6 +832,11 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     events.push({ kind: "again", seat: state.current });
     return { ...withSeat(state, state.current, { perkUsed: true }), phase: "roll", stepsLeft: 0 };
   }
+  // 時光倒流: another roll, still taking the empty lots walked over.
+  if (me?.rewind && !me.bankrupt && !me.jailed && !isOver(state)) {
+    events.push({ kind: "again", seat: state.current });
+    return { ...withSeat(state, state.current, { rewind: me.rewind > 1 ? me.rewind - 1 : undefined, goldRoad: true }), phase: "roll", stepsLeft: 0 };
+  }
   // Locks count down one per turn played.
   let deeds = state.deeds;
   for (const [key, deed] of Object.entries(state.deeds)) {
@@ -936,6 +963,19 @@ export function bestTarget(state: TableState, seat: number, unlockedOnly = false
   return theirs[0][0];
 }
 
+/** 霸王收購: the opponent whose land is worth most, and their three best lots. */
+function richestOpponent(state: TableState, seat: number): { owner: number; keys: string[] } | null {
+  let best: { owner: number; keys: string[]; worth: number } | null = null;
+  for (const o of opponents(state, seat)) {
+    const theirs = Object.entries(state.deeds).filter(([, d]) => d.owner === o);
+    if (!theirs.length) continue;
+    const worth = theirs.reduce((sum, [key, d]) => sum + rentOf(key, d.level, state.board), 0);
+    theirs.sort(([ka, a], [kb, b]) => b.level - a.level || rentOf(kb, b.level, state.board) - rentOf(ka, a.level, state.board) || (ka < kb ? -1 : 1));
+    if (!best || worth > best.worth) best = { owner: o, keys: theirs.slice(0, 3).map(([k]) => k), worth };
+  }
+  return best && { owner: best.owner, keys: best.keys };
+}
+
 /** Whether a power card can do anything right now (shield only works by itself). */
 export function canPlay(state: TableState, seat: number, power: Power): boolean {
   if (power === "shield") return false;
@@ -943,6 +983,9 @@ export function canPlay(state: TableState, seat: number, power: Power): boolean 
   if (power === "blackhole") return opponents(state, seat).some((o) => !(state.seats[o].spot.on === "loop" && state.seats[o].spot.i === 0));
   if (power === "iceage") return opponents(state, seat).some((o) => !state.seats[o].frozen);
   if (power === "goldroad") return !state.seats[seat].goldRoad;
+  if (power === "takeover") return richestOpponent(state, seat) !== null;
+  if (power === "tornado") return Object.values(state.deeds).some((d) => (d.owner === seat ? d.level < MAX_LEVEL : d.level > 1 && !state.seats[d.owner]?.bankrupt));
+  if (power === "rewind") return !state.seats[seat].rewind;
   if (power === "boost") return Object.values(state.deeds).some((d) => d.owner === seat && d.level < MAX_LEVEL);
   if (power === "swap" || power === "monster") return opponents(state, seat).length > 0;
   if (power === "levy") return opponents(state, seat).some((other) => state.seats[other].cash > 0);
@@ -999,6 +1042,41 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
   if (power === "goldroad") {
     events.push({ kind: "played", seat, power });
     return withSeat(state, seat, { ...hand, goldRoad: true });
+  }
+  if (power === "takeover") {
+    const { owner, keys } = richestOpponent(state, seat)!;
+    const shield = state.seats[owner].powers.indexOf("shield");
+    if (shield >= 0) {
+      events.push({ kind: "played", seat, power, target: owner });
+      events.push({ kind: "guarded", seat, by: owner });
+      return withSeat(withSeat(state, seat, hand), owner, { powers: state.seats[owner].powers.filter((_, i) => i !== shield) });
+    }
+    const deeds = { ...state.deeds };
+    const levels: Record<string, number> = {};
+    for (const key of keys) {
+      deeds[key] = { owner: seat, level: state.deeds[key].level };
+      levels[key] = state.deeds[key].level;
+    }
+    events.push({ kind: "played", seat, power, target: owner, levels });
+    let next: TableState = { ...withSeat(state, seat, hand), deeds };
+    for (const key of keys) next = noteSet(next, seat, key, events);
+    return next;
+  }
+  if (power === "tornado") {
+    const deeds = { ...state.deeds };
+    const levels: Record<string, number> = {};
+    for (const [key, d] of Object.entries(state.deeds)) {
+      const level = d.owner === seat ? Math.min(MAX_LEVEL, d.level + 1) : state.seats[d.owner]?.bankrupt ? d.level : Math.max(1, d.level - 1);
+      if (level === d.level) continue;
+      deeds[key] = { ...d, level };
+      levels[key] = level;
+    }
+    events.push({ kind: "played", seat, power, levels });
+    return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "rewind") {
+    events.push({ kind: "played", seat, power });
+    return withSeat(state, seat, { ...hand, goldRoad: true, rewind: 2 });
   }
   if (power === "boost") {
     const deeds = { ...state.deeds };

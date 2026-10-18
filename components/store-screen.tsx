@@ -23,6 +23,7 @@ import {
   PULL_PRICE,
   RARITIES,
   SPECIALS,
+  specialOdds,
   TEN_PRICE,
   addDays,
   addSpecial,
@@ -49,6 +50,7 @@ const TABS: [Tab, string][] = [
   ["deals", "精選"],
 ];
 const RARITY_STYLE: Record<Rarity, string> = {
+  UR: "bg-gradient-to-b from-[#FF6B6B] via-[#FBD000] to-[#A855F7] text-white border-[#FF3B3B]",
   SSR: "bg-gradient-to-b from-[#FFE27A] to-[#F59E0B] text-[#7C2D12] border-[#FBD000]",
   SR: "bg-gradient-to-b from-[#E9D5FF] to-[#A855F7] text-white border-[#C084FC]",
   R: "bg-gradient-to-b from-[#DBEAFE] to-[#60A5FA] text-white border-[#93C5FD]",
@@ -151,7 +153,7 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
     if (!paid) return;
     const out = draw(col, pool, times, Math.random);
     save({ wallet: paid, col: out.collection });
-    const best = out.pulls.some((p) => p.rarity === "SSR") ? "large" : out.pulls.some((p) => p.rarity === "SR") ? "medium" : "small";
+    const best = out.pulls.some((p) => p.rarity === "SSR" || p.rarity === "UR") ? "large" : out.pulls.some((p) => p.rarity === "SR") ? "medium" : "small";
     juice(best, undefined, window.innerHeight * 0.4);
     play(best === "small" ? "coin" : "chest");
     setResult(out.pulls);
@@ -258,7 +260,7 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                   </button>
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  {(pool === "hero" ? HEROES.map((h) => ({ prize: { kind: "hero", id: h.id } as Prize, rarity: h.rarity })) : SPECIALS.map((c) => ({ prize: { kind: "special", id: c.id } as Prize, rarity: "SSR" as Rarity }))).map(({ prize, rarity }) => (
+                  {(pool === "hero" ? HEROES.map((h) => ({ prize: { kind: "hero", id: h.id } as Prize, rarity: h.rarity })) : SPECIALS.map((c) => ({ prize: { kind: "special", id: c.id } as Prize, rarity: (c.ur ? "UR" : "SSR") as Rarity }))).map(({ prize, rarity }) => (
                     <span key={prize.kind === "shards" ? "s" : prize.id} className={cn("relative flex size-12 items-center justify-center rounded-xl border-2", RARITY_STYLE[rarity])}>
                       <PrizePic prize={prize} className="size-10" />
                       <span className="absolute -bottom-1.5 rounded-full bg-black/60 px-1 text-[9px] font-black text-white">{rarity}</span>
@@ -433,8 +435,8 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                 {SPECIALS.map((c) => (
                   <tr key={c.id} className="border-b border-[#E2E8F0]">
                     <td className="py-1">{t(c.name)}</td>
-                    <td className="py-1 text-center text-xs">SSR</td>
-                    <td className="py-1 text-right">{Math.round((100 / SPECIALS.length) * 100) / 100}%</td>
+                    <td className="py-1 text-center text-xs">{c.ur ? "UR" : "SSR"}</td>
+                    <td className="py-1 text-right">{specialOdds(c.id)}%</td>
                   </tr>
                 ))}
               </tbody>

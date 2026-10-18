@@ -1,4 +1,5 @@
 import { ENERGY_ICON } from "@/lib/energy";
+import { GEM_ICON } from "@/components/gem";
 import { WHEEL_PRIZES } from "@/lib/game";
 
 /** What each slice shows: its colour and its prize, drawn small round the rim. */
@@ -33,7 +34,14 @@ export function PrizeWheel({ stop }: { stop: number }) {
             <g key={k}>
               <path d={`M0 0 L${x1} ${y1} A${R} ${R} 0 0 1 ${x2} ${y2} Z`} fill={SLICES[k]} stroke="#fff" strokeWidth="3" />
               <g transform={`translate(${ix} ${iy}) rotate(${k * 60})`}>
-                {prize.coins && !prize.dice ? (
+                {prize.juice && !prize.dice && !prize.coins ? (
+                  <>
+                    <image href={GEM_ICON} x="-17" y="-26" width="34" height="34" />
+                    <text y="22" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff" stroke="#1E3A8A" strokeWidth="3" paintOrder="stroke">
+                      {prize.juice}
+                    </text>
+                  </>
+                ) : prize.coins && !prize.dice ? (
                   <>
                     <image href={ENERGY_ICON} x="-17" y="-26" width="34" height="34" />
                     <text y="22" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff" stroke="#1E3A8A" strokeWidth="3" paintOrder="stroke">

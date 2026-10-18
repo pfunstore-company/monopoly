@@ -1,5 +1,6 @@
 "use client";
 
+import { withGems } from "@/components/gem";
 import { juiceAt } from "@/components/juice";
 import { CHARACTERS } from "@/lib/characters";
 import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
@@ -167,7 +168,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                 ) : null}
               </button>
               {shown && amountOf(box) ? (
-                <span className={cn("mt-1 text-sm font-black tabular-nums", isOpen ? "text-[#FBD000]" : "text-white/50")}>{amountOf(box)}</span>
+                <span className={cn("mt-1 text-sm font-black tabular-nums", isOpen ? "text-[#FBD000]" : "text-white/50")}>{withGems(amountOf(box))}</span>
               ) : null}
               {/* The shelf under each row. */}
               {i % 3 === 0 ? <span className="pointer-events-none absolute -bottom-3 left-0 h-2 w-[calc(300%+2rem)] rounded bg-[#5a3a1c]/80 shadow-[0_4px_0_#2a1a0c]" /> : null}

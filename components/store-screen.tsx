@@ -405,19 +405,40 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 px-6" onClick={() => setOdds(false)} data-testid="odds">
           <div className="w-full rounded-2xl bg-white p-4 text-[#1E3A8A]">
             <p className="text-center text-lg font-black">{t("抽卡機率")}</p>
-            <table className="mt-2 w-full text-sm font-black">
+            {/* Every prize a pull can give, with its own chance (Sky 2026-10-18: only what's really in the pool). */}
+            <p className="mt-2 text-sm font-black">{t("角色卡池")}</p>
+            <table className="w-full text-sm font-black">
               <tbody>
-                {RARITIES.map((r) => (
-                  <tr key={r} className="border-b border-[#E2E8F0]">
-                    <td className="py-1">{r}</td>
-                    <td className="py-1 text-right">{ODDS[r]}%</td>
+                {RARITIES.filter((r) => r !== "N").flatMap((r) => {
+                  const list = HEROES.filter((h) => h.rarity === r);
+                  return list.map((h) => (
+                    <tr key={h.id} className="border-b border-[#E2E8F0]">
+                      <td className="py-1">{t(h.name)}</td>
+                      <td className="py-1 text-center text-xs">{r}</td>
+                      <td className="py-1 text-right">{Math.round((ODDS[r] / list.length) * 100) / 100}%</td>
+                    </tr>
+                  ));
+                })}
+                <tr className="border-b border-[#E2E8F0]">
+                  <td className="py-1">{t("碎片 ×{n}", { n: 1 })}</td>
+                  <td className="py-1 text-center text-xs">N</td>
+                  <td className="py-1 text-right">{ODDS.N}%</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="mt-1 text-xs font-bold text-[#475569]">{t("十連抽保證最少一個 SR 或以上；連續 {n} 抽冇 SSR，第 {n} 抽必定係 SSR。", { n: PITY })}</p>
+            <p className="mt-3 text-sm font-black">{t("特別卡池")}</p>
+            <table className="w-full text-sm font-black">
+              <tbody>
+                {SPECIALS.map((c) => (
+                  <tr key={c.id} className="border-b border-[#E2E8F0]">
+                    <td className="py-1">{t(c.name)}</td>
+                    <td className="py-1 text-center text-xs">SSR</td>
+                    <td className="py-1 text-right">{Math.round((100 / SPECIALS.length) * 100) / 100}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="mt-2 text-xs font-bold text-[#475569]">{t("角色卡池：N 係碎片；十連抽保證最少一個 SR 或以上；連續 {n} 抽冇 SSR，第 {n} 抽必定係 SSR。", { n: PITY })}</p>
-            <p className="mt-1 text-xs font-bold text-[#475569]">{t("同一等級入面每樣嘢機會均等。")}</p>
-            <p className="mt-1 text-xs font-bold text-[#475569]">{t("特別卡池：每抽必得一張特別卡，五款各 20%。")}</p>
           </div>
         </div>
       ) : null}

@@ -1,5 +1,6 @@
 "use client";
 
+import { withGems } from "@/components/gem";
 import { useEffect, useRef, useState } from "react";
 
 import { GrowIntro, HATCH_MS } from "@/components/hatch-intro";
@@ -91,7 +92,7 @@ export function PetScreen({
             </p>
             {pet.stage > 0 ? (
               <p className="text-xs font-bold text-[#3B5BA9]">
-                {t("每日食 {m} 🍖 同 {j} 💎（自動由倉庫扣）", { m: UPKEEP[pet.stage][0], j: UPKEEP[pet.stage][1] })}
+                {withGems(t("每日食 {m} 🍖 同 {j} 💎（自動由倉庫扣）", { m: UPKEEP[pet.stage][0], j: UPKEEP[pet.stage][1] }))}
               </p>
             ) : null}
             {pet.stage === 0 ? (
@@ -148,7 +149,7 @@ export function PetScreen({
                 >
                   {t("🍖 餵大佢！")}
                 </button>
-                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("🍖 喺棋盤肉格攞；💎 水晶要去偷嘢格偷返嚟。")}</p>
+                <p className="text-center text-xs font-bold text-[#3B5BA9]">{withGems(t("🍖 喺棋盤肉格攞；💎 水晶要去偷嘢格偷返嚟。"))}</p>
               </>
             ) : (
               <p className="text-center text-lg font-black text-[#D97706]">{t("👑 已經係 SSR！")}</p>

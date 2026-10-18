@@ -1,5 +1,6 @@
 "use client";
 
+import { Gem } from "@/components/gem";
 import { juice } from "@/components/juice";
 import { isCalm, isMusicOn, setCalm, setMusicOn } from "@/lib/music";
 import { AttackScreen } from "@/components/attack-screen";
@@ -627,7 +628,7 @@ export function DailyGame() {
               ) : null}
               {state.landing.dice ? <span>+{state.landing.dice}🎲</span> : null}
               {state.landing.meat ? <span>+{state.landing.meat}🍖</span> : null}
-              {state.landing.juice ? <span>+{state.landing.juice}💎</span> : null}
+              {state.landing.juice ? <span>+{state.landing.juice}<Gem /></span> : null}
             </p>
           ) : null}
         </div>

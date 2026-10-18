@@ -1273,7 +1273,7 @@ function HostReport({ realm, guests, houseRent }: { realm: Realm; guests: number
   );
   return (
     <section className="mt-3 space-y-1 rounded-2xl bg-[#F3EEFF] p-3 text-sm font-black text-[#4C1D95]" data-testid="host-report">
-      <h3 className="text-center text-base">{t("🏰 主人收入")}</h3>
+      <h3 className="flex items-center justify-center gap-1 text-base"><Energy className="size-5" /> {t("主人收入")}</h3>
       {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：冇門票")}</p> : null}
       {row(t("門票 {n} × {g} 位客", { n: E(realm.ticket), g: guests }), `+${E(report.tickets)}`)}
       {row(t("地稅 {n}%", { n: LAND_TAX * 100 }), `−${E(report.tax)}`)}

@@ -34,6 +34,8 @@ type Opts = {
   /** Lights to dim while the island sleeps, with their full strength. */
   lights: { light: any; full: number }[];
   glowTex: any;
+  /** Loads a 3D model (resolves null if it can't); without it everything is drawn in code. */
+  loadModel?: (url: string) => Promise<any | null>;
 };
 
 const easeBack = (k: number) => {
@@ -244,7 +246,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     return g;
   };
   /** Things drawn grey until their land wakes; each mesh keeps its own colour to come back to. */
-  type Sleeper = { obj: any; pad: number; mats: { m: any; colour: any }[]; woke: boolean };
+  type Sleeper = { obj: any; pad: number; mats: { m: any; colour: any }[]; woke: boolean; kind: PropKind; size: number; wake?: { value: number }[] };
   const sleepers: Sleeper[] = [];
   const drain = (obj: any) => {
     const mats: Sleeper["mats"] = [];
@@ -274,22 +276,84 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     if (r > (c.pad === -1 ? 0.1 : 0.36) || keepClear(c.x, c.z)) return;
     const kinds = c.pad >= 0 ? theme.zones[Math.floor(c.pad / 6)].props : theme.middle.props;
     const p = prop(weighted(kinds, hash(c.x, c.z, 6)), 0.75 + hash(c.x, c.z, 7) * 0.55, hash(c.x, c.z, 8));
+    p.userData.r = hash(c.x, c.z, 8);
     p.position.set(c.x + (hash(c.x, c.z, 9) - 0.5) * 0.18, c.top, c.z + (hash(c.x, c.z, 10) - 0.5) * 0.18);
     p.rotation.y = hash(c.x, c.z, 11) * 6.28;
     root.add(p);
-    sleepers.push({ obj: p, pad: c.pad, mats: drain(p), woke: false });
+    const kind = weighted(kinds, hash(c.x, c.z, 6)), size = 0.75 + hash(c.x, c.z, 7) * 0.55;
+    sleepers.push({ obj: p, pad: c.pad, mats: drain(p), woke: false, kind, size });
   });
   const colourIn = (s: Sleeper, back = false) => {
     s.woke = !back;
-    return tween(700, (k) =>
+    return tween(700, (k) => {
+      s.wake?.forEach((u) => (u.value = back ? 1 - k : k));
       s.mats.forEach(({ m, colour }) => {
         const g = greyOf(colour);
         if (back) m.color.copy(colour).lerp(g, k);
         else m.color.copy(g).lerp(colour, k);
         if (m.userData.glow !== undefined) m.emissiveIntensity = m.userData.glow * (back ? 1 - k : k);
-      }),
-    );
+      });
+    });
   };
+
+  // ---------- 3D models (lib/realm-themes `models`): swapped in for the drawn-in-code shapes once loaded ----------
+  const models: Record<string, any> = {};
+  /** A textured model's material that can be drained of colour: uWake 0 = asleep (grey), 1 = awake. */
+  const wakeable = (m: any) => {
+    const mm = m.clone();
+    const u = { value: 0 };
+    mm.onBeforeCompile = (sh: any) => {
+      sh.uniforms.uWake = u;
+      sh.fragmentShader =
+        "uniform float uWake;\n" +
+        sh.fragmentShader.replace(
+          "#include <map_fragment>",
+          "#include <map_fragment>\nfloat wl = dot(diffuseColor.rgb, vec3(.3, .59, .11));\ndiffuseColor.rgb = mix(vec3(wl * .42, wl * .42, wl * .52), diffuseColor.rgb, uWake);",
+        );
+    };
+    mm.customProgramCacheKey = () => "wake";
+    return { mm, u };
+  };
+  /** A copy of a loaded model standing on y = 0, centred, `height` tall. */
+  const placed = (name: string, height: number) => {
+    const src = models[name];
+    if (!src) return null;
+    const m = src.clone(true);
+    const box = new T.Box3().setFromObject(m), size = box.getSize(new T.Vector3()), mid = box.getCenter(new T.Vector3());
+    const k = height / Math.max(0.001, size.y);
+    m.scale.setScalar(k);
+    m.position.set(-mid.x * k, -box.min.y * k, -mid.z * k);
+    const g = new T.Group();
+    g.add(m);
+    m.traverse((x: any) => {
+      if (x.isMesh) x.castShadow = x.receiveShadow = true;
+    });
+    return g;
+  };
+  /** How tall each model stands (world units) at prop size 1. */
+  const PROP_TALL: Partial<Record<PropKind, number>> = { pine: 1.1, round: 1.0, crystal: 0.5, gold: 0.45, rock: 0.3 };
+  const useModels = () => {
+    for (const s of sleepers) {
+      const tall = PROP_TALL[s.kind];
+      const g = tall && models[s.kind] ? placed(s.kind, tall * s.size) : null;
+      if (!g) continue;
+      s.obj.clear();
+      s.obj.add(g);
+      s.mats = [];
+      s.wake = [];
+      g.traverse((x: any) => {
+        if (!x.isMesh) return;
+        const { mm, u } = wakeable(x.material);
+        u.value = s.woke ? 1 : 0;
+        x.material = mm;
+        s.wake!.push(u);
+      });
+    }
+  };
+  if (o.loadModel && theme.models) {
+    const entries = Object.entries(theme.models);
+    void Promise.all(entries.map(([name, url]) => o.loadModel!(url).then((m) => m && (models[name] = m)))).then(useModels);
+  }
 
   // ---------- Fog over the sleeping land ----------
   type Puff = { s: any; pad: number; y: number; phase: number; alive: boolean };
@@ -566,12 +630,19 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       g.add(m);
       return m;
     };
+    const model = placed(kind, kind === "worldTree" ? 3.4 : kind === "goldMine" ? 1.7 : 1.8);
+    if (model) {
+      if (kind === "goldMine") model.scale.set(1.25, 1, 1.25);
+      g.add(model);
+    }
     if (kind === "worldTree") {
-      add(new T.Mesh(new T.CylinderGeometry(0.2, 0.36, 1.8, 8), trunkM), 0, 0.9, 0);
+      if (!model) add(new T.Mesh(new T.CylinderGeometry(0.2, 0.36, 1.8, 8), trunkM), 0, 0.9, 0);
       const crownM = new T.MeshStandardMaterial({ color: lin(0x4fd36a), roughness: 0.7, flatShading: true, emissive: lin(0x1d6b2a), emissiveIntensity: 0.4 });
-      add(new T.Mesh(new T.IcosahedronGeometry(1.05, 1), crownM), 0, 2.3, 0);
-      add(new T.Mesh(new T.IcosahedronGeometry(0.6, 1), crownM), 0.75, 1.9, 0.2);
-      add(new T.Mesh(new T.IcosahedronGeometry(0.55, 1), crownM), -0.7, 2, -0.1);
+      if (!model) {
+        add(new T.Mesh(new T.IcosahedronGeometry(1.05, 1), crownM), 0, 2.3, 0);
+        add(new T.Mesh(new T.IcosahedronGeometry(0.6, 1), crownM), 0.75, 1.9, 0.2);
+        add(new T.Mesh(new T.IcosahedronGeometry(0.55, 1), crownM), -0.7, 2, -0.1);
+      }
       for (let k = 0; k < 10; k++) {
         const f = new T.Sprite(new T.SpriteMaterial({ map: o.glowTex, color: 0xfff6a0, blending: T.AdditiveBlending, depthWrite: false, transparent: true }));
         f.scale.set(0.16, 0.16, 1);
@@ -579,17 +650,22 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         g.add(f);
       }
     } else if (kind === "goldMine") {
-      add(new T.Mesh(new T.ConeGeometry(1.3, 2.1, 7), new T.MeshStandardMaterial({ color: lin(0x9a7b55), roughness: 0.95, flatShading: true })), 0, 1.05, 0);
-      add(new T.Mesh(new T.ConeGeometry(0.55, 0.85, 7), goldOre), 0, 1.75, 0);
-      for (let k = 0; k < 6; k++) add(new T.Mesh(new T.OctahedronGeometry(0.15), goldOre), Math.cos(k) * 1.15, 0.15, Math.sin(k) * 1.05);
-      const door = add(new T.Mesh(new T.CircleGeometry(0.28, 16, 0, Math.PI), new T.MeshBasicMaterial({ color: 0x1a1208 })), 0, 0.02, 1.02);
-      door.castShadow = false;
+      if (!model) {
+        add(new T.Mesh(new T.ConeGeometry(1.3, 2.1, 7), new T.MeshStandardMaterial({ color: lin(0x9a7b55), roughness: 0.95, flatShading: true })), 0, 1.05, 0);
+        add(new T.Mesh(new T.ConeGeometry(0.55, 0.85, 7), goldOre), 0, 1.75, 0);
+        const door = add(new T.Mesh(new T.CircleGeometry(0.28, 16, 0, Math.PI), new T.MeshBasicMaterial({ color: 0x1a1208 })), 0, 0.02, 1.02);
+        door.castShadow = false;
+      } else add(new T.Mesh(new T.ConeGeometry(0.4, 0.6, 7), goldOre), 0, 1.85, -0.1);
+      // gold heaped round it (the model's own rock has none)
+      for (let k = 0; k < 7; k++) add(new T.Mesh(new T.OctahedronGeometry(0.13 + (k % 3) * 0.04), goldOre), Math.cos(k * 0.9 + 0.3) * 1.25, 0.12, Math.sin(k * 0.9 + 0.3) * 1.05 + 0.2);
     } else {
       const cliffM = new T.MeshStandardMaterial({ color: lin(0x6f6a7c), roughness: 0.95, flatShading: true });
-      add(new T.Mesh(new T.BoxGeometry(1.5, 1.7, 0.9), cliffM), 0, 0.85, -0.2);
-      add(new T.Mesh(new T.DodecahedronGeometry(0.5, 0), cliffM), -0.75, 1.5, -0.1);
-      add(new T.Mesh(new T.CylinderGeometry(0.95, 0.95, 0.08, 24), waterM), 0, 0.06, 0.65);
-      add(new T.Mesh(new T.BoxGeometry(0.72, 1.7, 0.05), waterM), 0, 0.85, 0.27);
+      if (!model) {
+        add(new T.Mesh(new T.BoxGeometry(1.5, 1.7, 0.9), cliffM), 0, 0.85, -0.2);
+        add(new T.Mesh(new T.DodecahedronGeometry(0.5, 0), cliffM), -0.75, 1.5, -0.1);
+      }
+      add(new T.Mesh(new T.CylinderGeometry(0.95, 0.95, 0.08, 24), waterM), 0, 0.06, model ? 1.05 : 0.65);
+      add(new T.Mesh(new T.BoxGeometry(0.72, 1.7, 0.05), waterM), 0, 0.85, model ? 0.62 : 0.27);
       // and on over the island's edge, down into space
       add(new T.Mesh(new T.BoxGeometry(0.5, 4.5, 0.05), waterM), 0.85, -2.1, 1.05);
     }

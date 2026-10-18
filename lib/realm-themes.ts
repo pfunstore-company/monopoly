@@ -40,6 +40,8 @@ export type Theme = {
   light: { asleep: number; awake: number };
   /** Total levels on the board at which the middle landmark grows. */
   landmark: { at: number; kind: LandmarkKind; name: string }[];
+  /** 3D models (Meshy, Sky 2026-10-18) for props and marvels; anything missing is drawn in code. */
+  models?: Partial<Record<PropKind | MarvelKind, string>>;
   /** 皮膚位 (reserved for the shop, Sky 2026-10-18: no shop UI yet): which skin each slot uses. */
   slots: { landmark: string; tile: string; dice: string; building: string };
 };
@@ -83,6 +85,15 @@ export const SPACE_ISLE: Theme = {
     { at: 30, kind: "ferrisWheel", name: "摩天輪" },
   ],
   slots: { landmark: "basic", tile: "basic", dice: "basic", building: "tower" },
+  models: {
+    pine: "/models/realm/pine.glb",
+    round: "/models/realm/round.glb",
+    crystal: "/models/realm/crystal.glb",
+    gold: "/models/realm/gold.glb",
+    worldTree: "/models/realm/worldTree.glb",
+    goldMine: "/models/realm/goldMine.glb",
+    waterfall: "/models/realm/waterfall.glb",
+  },
 };
 
 export const THEMES: Record<string, Theme> = { space: SPACE_ISLE };

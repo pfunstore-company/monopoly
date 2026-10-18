@@ -1665,6 +1665,10 @@ export function createBoardScene(
         { light: sun, full: sun.intensity },
       ],
       glowTex,
+      loadModel: (url) =>
+        loadGltfLoader(T)
+          .then((Loader) => new Promise<any>((resolve) => new Loader().load(url, (g: any) => resolve(g.scene), undefined, () => resolve(null))))
+          .catch(() => null),
     });
     const w = world;
     islandAnims.push((now, dt) => w.tick(now, dt));

@@ -11,6 +11,8 @@
  * functions to play back the events a move produced.
  */
 import { BUILD_ART, DECOR_DIR, ISLANDS, islandOf, type IslandArt } from "@/lib/islands";
+import { themeOf } from "@/lib/realm-themes";
+import { createAwakenWorld, type AwakenWorld } from "@/components/awaken-world";
 import { buildMonster } from "@/components/monster";
 import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
@@ -281,6 +283,9 @@ export function createBoardScene(
   /** 海島 and 三葉草 share the sandy island in the sea; only 海島 has the lighthouse and pier. */
   const island = board === "island" || board === "clover";
   const clover = board === "clover";
+  /** 3D 喚醒島 (Sky 2026-10-18): the island is built in code and wakes as land is bought, instead of a picture. */
+  const awakenTheme = clover ? themeOf(CLOVER_ISLE.awaken) : undefined;
+  let world: AwakenWorld | null = null;
   const ENV_R = clover ? 5.7 : ISLAND_R;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let speed = 1;
@@ -321,7 +326,8 @@ export function createBoardScene(
   scene.fog = seeThrough ? null : new T.Fog(island ? 0xa9dcf5 : 0x16291c, island ? 50 : 40, island ? 110 : 140);
 
   const camera = new T.PerspectiveCamera(38, 1, 0.1, 200);
-  scene.add(island ? new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85) : new T.HemisphereLight(0xe2f5cf, 0x14240f, 0.7));
+  const hemi = island ? new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85) : new T.HemisphereLight(0xe2f5cf, 0x14240f, 0.7);
+  scene.add(hemi);
   const sun = new T.DirectionalLight(island ? 0xffe2c2 : 0xffe8b5, island ? 1.15 : 1.3);
   sun.position.set(-10, 22, 12);
   sun.castShadow = true;
@@ -613,7 +619,7 @@ export function createBoardScene(
     // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
     // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
     if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
-    if (clover) {
+    if (clover && !awakenTheme) {
       // Sky's painted island is the board: one picture lying on the ground, squares and all.
       const [x0, z0] = isleAt(0, 0), [x1, z1] = isleAt(CLOVER_ISLE.w, CLOVER_ISLE.h);
       const tex = new T.TextureLoader().load(CLOVER_ISLE.art);
@@ -1082,10 +1088,11 @@ export function createBoardScene(
     group.position.set(x, 0, z);
     scene.add(group);
     const d = 60 * CLOVER_PX; // a painted square is about 56 pixels across
+    const lift = awakenTheme ? 0.03 : 0; // on the 3D island the pads stand up to TOP
     const flat = (geo: any, mat: any, y: number) => {
       const m = new T.Mesh(geo, mat);
       m.rotation.x = -Math.PI / 2;
-      m.position.y = y;
+      m.position.y = y + lift;
       m.visible = false;
       group.add(m);
       return m;
@@ -1645,6 +1652,23 @@ export function createBoardScene(
     });
   const tween = (ms: number, step: (k: number) => void) =>
     new Promise<void>((resolve) => anims.push({ start: performance.now(), ms: ms / pace(), step, resolve }));
+  if (awakenTheme) {
+    world = createAwakenWorld(T, scene, awakenTheme, {
+      points: CLOVER_POINTS,
+      plaza: "o0",
+      lots: BOARDS.clover.lotKeys,
+      top: TOP,
+      tween,
+      wait,
+      lights: [
+        { light: hemi, full: hemi.intensity },
+        { light: sun, full: sun.intensity },
+      ],
+      glowTex,
+    });
+    const w = world;
+    islandAnims.push((now, dt) => w.tick(now, dt));
+  }
 
   // ---------- Camera: 40° down (海島 45°); close on the player, wide between turns ----------
   const ELEV = clover ? CLOVER_ELEV : ((island ? 45 : 40) * Math.PI) / 180;
@@ -2169,6 +2193,11 @@ export function createBoardScene(
       if (!tile) return;
       if (clover) {
         // 三葉草: the stone turns the owner's colour and its toll shows as ×1…×4 (Sky 2026-10-09: no buildings).
+        if (world) {
+          // 3D 喚醒島: the land wakes and the owner's tower rises beside the lot; the pad's rim takes their colour.
+          await world.own(key, seat, colours[seat], level);
+          return;
+        }
         const m = tile.body.material, from = tile.body.visible ? m.color.clone() : new T.Color(hex(colours[seat])), to = new T.Color(hex(colours[seat]));
         tile.body.visible = true;
         const badge = badges[key];
@@ -2222,6 +2251,7 @@ export function createBoardScene(
       // A lot that goes back to nobody loses its 封地 chains too.
       const chains = tile.group.getObjectByName("lock");
       if (chains) tile.group.remove(chains);
+      world?.clear(key);
       if (tile.house) tile.group.remove(tile.house);
       tile.house = null;
       tile.body.material.color.setHex(tile.base);

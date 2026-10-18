@@ -375,6 +375,8 @@ export type TableEvent =
   | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number>; paid?: Record<number, number>; targets?: number[] }
   /** 黃金之路 took this empty lot on the way. */
   | { kind: "goldLot"; seat: number; key: string }
+  /** 三葉草: one owner now holds a whole area of six (its marvel appears and rent there doubles). */
+  | { kind: "setDone"; seat: number; zone: number }
   /** 冰河時代: this player's turn is skipped. */
   | { kind: "thawed"; seat: number }
   /** A 雙倍租 ran out. */
@@ -491,6 +493,24 @@ export function newTable(
   };
 }
 
+/**
+ * 成套 (Sky 2026-10-18): on the 領地 board, who holds every lot of `key`'s area of six (null if nobody does).
+ * Their rent there is doubled.
+ */
+export function setOwnerOf(state: TableState, key: string): number | null {
+  if (state.board !== "clover") return null;
+  const square = BOARDS.clover.squares[key];
+  if (!square || square.kind !== "lot") return null;
+  const area = BOARDS.clover.lotKeys.filter((k) => BOARDS.clover.squares[k].group === square.group);
+  const owner = state.deeds[area[0]]?.owner;
+  return owner !== undefined && area.every((k) => state.deeds[k]?.owner === owner) ? owner : null;
+}
+/** After `seat` takes `key`: tell everyone if that finished an area. */
+function noteSet(state: TableState, seat: number, key: string, events: TableEvent[]): TableState {
+  if (setOwnerOf(state, key) === seat) events.push({ kind: "setDone", seat, zone: BOARDS.clover.squares[key].group });
+  return state;
+}
+
 export function rentOf(key: string, level: number, board: BoardId = "eight"): number {
   return money(RENTS[level] * (BOARDS[board].squares[key]?.gold ? 2 : 1));
 }
@@ -577,7 +597,7 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
     const sq = BOARDS[state.board].squares[key];
     if (sq?.kind === "lot" && !moved.deeds[key] && moved.rules.houses[key] === undefined) {
       events.push({ kind: "goldLot", seat, key });
-      return { ...moved, deeds: { ...moved.deeds, [key]: { owner: seat, level: 1 } } };
+      return noteSet({ ...moved, deeds: { ...moved.deeds, [key]: { owner: seat, level: 1 } } }, seat, key, events);
     }
   }
   return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
@@ -638,7 +658,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
           return state;
         }
         events.push({ kind: "bought", seat, key, price: square.price });
-        return { ...withSeat(state, seat, { cash: player.cash - square.price }), deeds: { ...state.deeds, [key]: { owner: seat, level: 1 } } };
+        return noteSet({ ...withSeat(state, seat, { cash: player.cash - square.price }), deeds: { ...state.deeds, [key]: { owner: seat, level: 1 } } }, seat, key, events);
       }
       if (deed.owner === seat) {
         if (deed.level >= MAX_LEVEL) return state;
@@ -659,7 +679,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         events.push({ kind: "shielded", seat, to: deed.owner, key });
         return withSeat(state, seat, { powers: player.powers.filter((_, i) => i !== shield) });
       }
-      const full = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1);
+      const full = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1) * (setOwnerOf(state, key) === deed.owner ? 2 : 1);
       // 阿科: the first rent of the game is halved.
       const halve = heroOf(player) === "franken" && !player.perkUsed;
       const rent = halve ? full / 2 : full;

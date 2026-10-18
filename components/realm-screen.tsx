@@ -327,7 +327,7 @@ function RealmEditor({
                       )}
                       data-testid={`isle-${isle.id}`}
                     >
-                      <img src={isle.art} alt="" draggable={false} className="h-12 w-9 object-contain" />
+                      {isle.art ? <img src={isle.art} alt="" draggable={false} className="h-12 w-9 object-contain" /> : <span className="flex h-12 w-9 items-center justify-center text-2xl">🌌</span>}
                       {t(isle.name)}
                     </button>
                   );

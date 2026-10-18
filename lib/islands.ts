@@ -28,6 +28,8 @@ export type IslandArt = {
   zones?: [BuildKind, BuildKind, BuildKind];
   /** How wide a painted square is in this picture (pixels), so a building's stone covers it. */
   squareW?: number;
+  /** 3D 喚醒主題 (lib/themes, Sky 2026-10-18): no picture — the island is built in 3D and wakes as land is bought. */
+  awaken?: string;
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -64,8 +66,32 @@ export const DECOR_DIR = "/art/islands/decor/";
  * quarry, forest and mine). Plaza at the front → quarry (left) → forest (back) → mine (right).
  */
 export const islandOf = (id?: string): IslandArt => ISLANDS.find((i) => i.id === id) ?? ISLANDS[0];
+/** The painted islands (the 我嘅領地 page shows these pictures). */
+export const PAINTED_ISLANDS = (): IslandArt[] => ISLANDS.filter((i) => !i.awaken);
 
 export const ISLANDS: IslandArt[] = [
+  // Theme #1 深空奇幻島 (Sky 2026-10-18): the 3D awakening island, laid out like the forest island's squares.
+  {
+    id: "space",
+    name: "深空奇幻島",
+    art: "",
+    w: 941,
+    h: 1360,
+    top: 120,
+    squareW: 60,
+    awaken: "space",
+    tiles: "painted",
+    squares: [
+      { x: 472, y: 965 },
+      { x: 297, y: 768 }, { x: 366, y: 709 }, { x: 384, y: 630 }, { x: 350, y: 557 }, { x: 296, y: 501 }, { x: 212, y: 469 },
+      { x: 280, y: 304 }, { x: 322, y: 243 }, { x: 405, y: 202 }, { x: 513, y: 201 }, { x: 596, y: 239 }, { x: 639, y: 303 },
+      { x: 735, y: 468 }, { x: 653, y: 524 }, { x: 599, y: 588 }, { x: 585, y: 665 }, { x: 625, y: 736 }, { x: 712, y: 770 },
+    ],
+    nest: { x: 472, y: 960, w: 200 },
+    falls: [],
+    spots: [],
+    decor: [],
+  },
   {
     id: "forest",
     name: "森林礦島",

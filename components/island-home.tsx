@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { NestDragon } from "@/components/nest-dragon";
 import { loadPet } from "@/components/wallet-store";
-import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
+import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, PAINTED_ISLANDS } from "@/lib/islands";
 
 const SHOW_SPOTS = false;
 /** The board stones float 0.8 world units up (39 picture pixels seen from the camera) and are 84 pixels across. */
@@ -195,6 +195,7 @@ export function IslandHome() {
   const strip = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState(false);
+  const ISLANDS = PAINTED_ISLANDS();
   const pages = ISLANDS.length + 1;
   const go = (n: number) => strip.current?.scrollTo({ left: n * strip.current.clientWidth, behavior: "smooth" });
 

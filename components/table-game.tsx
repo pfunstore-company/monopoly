@@ -474,6 +474,12 @@ export function EightBoard({
             void scene.floatText(event.seat, "✨", "#FBD000");
             await scene.own(event.key, event.seat, 1);
             break;
+          case "setDone":
+            play("build");
+            say("{name} 統一咗成個區！租金 ×2", { name: who(event.seat) });
+            juice("large", undefined, window.innerHeight * 0.45);
+            await scene.wait(1600);
+            break;
           case "thawed":
             void scene.floatText(event.seat, "❄️", "#38BDF8");
             await scene.wait(500);

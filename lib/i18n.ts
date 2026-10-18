@@ -210,6 +210,8 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "帶特別卡入場（最多 {n} 張）": { hans: "带特别卡入场（最多 {n} 张）", en: "Bring special cards (up to {n})" },
   "十連抽保證最少一個 SR 或以上；連續 {n} 抽冇 SSR，第 {n} 抽必定係 SSR。": { hans: "十连抽保证至少一个 SR 或以上；连续 {n} 抽没有 SSR，第 {n} 抽必定是 SSR。", en: "A ten-pull holds at least one SR; after {n} pulls without an SSR, pull {n} is an SSR." },
   "主人收入": { hans: "主人收入", en: "Host earnings" },
+  "{name} 統一咗成個區！租金 ×2": { hans: "{name} 统一了整个区！租金 ×2", en: "{name} owns the whole area! Rent ×2" },
+  深空奇幻島: { hans: "深空奇幻岛", en: "Deep Space Isle" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

@@ -89,11 +89,16 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     const d = new T.Vector3(p.x - centre.x, 0, Math.min(0, (p.z - centre.z) * 0.8));
     return d.lengthSq() > 0.01 ? d.normalize() : new T.Vector3(0, 0, -1);
   };
-  const plots = pads.map((p) => p.clone().addScaledVector(outward(p), 0.82));
+  // Along the front the outside is toward the camera, so those buildings go inside the ring instead.
+  const plots = pads.map((p) => {
+    const front = p.z - centre.z > 2.6;
+    const dir = front ? new T.Vector3(centre.x - p.x, 0, centre.z - p.z).normalize() : outward(p);
+    return p.clone().addScaledVector(dir, 0.95);
+  });
   const marvelAt = [0, 1, 2].map((z) => {
     const six = pads.slice(z * 6, z * 6 + 6);
     const c = six.reduce((s, p) => s.add(p), new T.Vector3()).multiplyScalar(1 / 6);
-    return c.addScaledVector(outward(c), 1.75);
+    return c.addScaledVector(outward(c), 2.3);
   });
   const middleAt = new T.Vector3(centre.x, 0, centre.z + 0.6);
 
@@ -208,7 +213,35 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     m.position.set(plazaAt.x, TOP + 0.006, plazaAt.z);
     root.add(m);
   }
-  pads.forEach((p) => padRims.push(makePad(p, 0.46)));
+  // 地格 (Sky 2026-10-19: a tidy ring like a real 大富翁 board): square stone slabs along the road, each turned to it,
+  // a little tinted by its area; the frame round the top takes the owner's colour.
+  const SLAB = 1.1;
+  const frameGeo = (() => {
+    const outer = new T.Shape(), h = SLAB / 2, w = 0.07;
+    outer.moveTo(-h, -h); outer.lineTo(h, -h); outer.lineTo(h, h); outer.lineTo(-h, h); outer.lineTo(-h, -h);
+    const hole = new T.Path();
+    hole.moveTo(-h + w, -h + w); hole.lineTo(-h + w, h - w); hole.lineTo(h - w, h - w); hole.lineTo(h - w, -h + w); hole.lineTo(-h + w, -h + w);
+    outer.holes.push(hole);
+    const g = new T.ExtrudeGeometry(outer, { depth: 0.04, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2);
+    return g;
+  })();
+  const slabMats = [0xd9efe8, 0xe2f1d2, 0xf3e3c8].map((c) => new T.MeshStandardMaterial({ color: lin(c), roughness: 0.7 }));
+  const slabGeo = new T.BoxGeometry(SLAB, TOP, SLAB);
+  pads.forEach((p, i) => {
+    const prev = i ? pads[i - 1] : plazaAt, next = pads[i + 1] ?? plazaAt;
+    const g = new T.Group();
+    g.position.copy(p);
+    g.rotation.y = Math.atan2(next.x - prev.x, next.z - prev.z);
+    const body = new T.Mesh(slabGeo, slabMats[Math.floor(i / 6)]);
+    body.position.y = TOP / 2;
+    body.castShadow = body.receiveShadow = true;
+    const rim = new T.Mesh(frameGeo, goldMat.clone());
+    rim.position.y = TOP - 0.035;
+    g.add(body, rim);
+    root.add(g);
+    padRims.push(rim);
+  });
   const roadMat = new T.MeshBasicMaterial({ color: lin(theme.road), transparent: true, opacity: 0.55, depthWrite: false });
   {
     const curve = new T.CatmullRomCurve3(loop.map((p: any) => new T.Vector3(p.x, TOP * 0.55, p.z)));

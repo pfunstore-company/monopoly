@@ -65,6 +65,41 @@ export const DECOR_DIR = "/art/islands/decor/";
  * 森林礦島 (Sky 2026-10-09: back to the drawing with painted squares, stairs and bridge — 6 squares in each of the
  * quarry, forest and mine). Plaza at the front → quarry (left) → forest (back) → mine (right).
  */
+/**
+ * 深空奇幻島's road (in the forest picture's pixels, which the board maths uses): 19 squares evenly round a rounded
+ * rectangle — start at the front middle, then up the left, across the back and down the right.
+ */
+function ringSquares(): At[] {
+  const halfW = 3.5, halfD = 4.4, r = 1.7, cz = 0.2; // world units
+  const sx = halfW - r, sz = halfD - r;
+  // Walk the outline clockwise seen from above, starting at the front middle (+z is the front).
+  const segs: { len: number; at: (t: number) => [number, number] }[] = [
+    { len: sx, at: (t) => [-t * sx, halfD] },
+    { len: (Math.PI / 2) * r, at: (t) => [-sx - r * Math.sin(t * Math.PI / 2), sz + r * Math.cos(t * Math.PI / 2)] },
+    { len: 2 * sz, at: (t) => [-halfW, sz - t * 2 * sz] },
+    { len: (Math.PI / 2) * r, at: (t) => [-sx - r * Math.cos(t * Math.PI / 2), -sz - r * Math.sin(t * Math.PI / 2)] },
+    { len: 2 * sx, at: (t) => [-sx + t * 2 * sx, -halfD] },
+    { len: (Math.PI / 2) * r, at: (t) => [sx + r * Math.sin(t * Math.PI / 2), -sz - r * Math.cos(t * Math.PI / 2)] },
+    { len: 2 * sz, at: (t) => [halfW, -sz + t * 2 * sz] },
+    { len: (Math.PI / 2) * r, at: (t) => [sx + r * Math.cos(t * Math.PI / 2), sz + r * Math.sin(t * Math.PI / 2)] },
+    { len: sx, at: (t) => [sx - t * sx, halfD] },
+  ];
+  const total = segs.reduce((s, g) => s + g.len, 0);
+  const out: At[] = [];
+  for (let i = 0; i < 19; i++) {
+    let d = (i / 19) * total;
+    let seg = segs[0];
+    for (seg of segs) {
+      if (d <= seg.len) break;
+      d -= seg.len;
+    }
+    const [x, z] = seg.at(Math.min(1, d / seg.len));
+    // world → the picture's pixels (see cloverAt in components/eight-scene)
+    out.push({ x: Math.round(x * 75 + 476), y: Math.round((z + cz) * 75 * Math.sin((50 * Math.PI) / 180) + 680 - 120) });
+  }
+  return out;
+}
+
 export const islandOf = (id?: string): IslandArt => ISLANDS.find((i) => i.id === id) ?? ISLANDS[0];
 /** The painted islands (the 我嘅領地 page shows these pictures). */
 export const PAINTED_ISLANDS = (): IslandArt[] => ISLANDS.filter((i) => !i.awaken);
@@ -81,13 +116,9 @@ export const ISLANDS: IslandArt[] = [
     squareW: 60,
     awaken: "space",
     tiles: "painted",
-    squares: [
-      { x: 472, y: 860 },
-      { x: 297, y: 768 }, { x: 366, y: 709 }, { x: 384, y: 630 }, { x: 350, y: 557 }, { x: 296, y: 501 }, { x: 212, y: 469 },
-      { x: 280, y: 304 }, { x: 322, y: 243 }, { x: 405, y: 202 }, { x: 513, y: 201 }, { x: 596, y: 239 }, { x: 639, y: 303 },
-      { x: 735, y: 468 }, { x: 653, y: 524 }, { x: 599, y: 588 }, { x: 585, y: 665 }, { x: 625, y: 736 }, { x: 712, y: 770 },
-    ],
-    nest: { x: 472, y: 855, w: 110 },
+    // 大富翁 ring (Sky 2026-10-19): the start at the front, 18 lots evenly round a rounded rectangle.
+    squares: ringSquares(),
+    nest: { x: 476, y: 824, w: 110 },
     falls: [],
     spots: [],
     decor: [],

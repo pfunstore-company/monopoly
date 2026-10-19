@@ -41,7 +41,7 @@ export type Theme = {
   /** Total levels on the board at which the middle landmark grows. */
   landmark: { at: number; kind: LandmarkKind; name: string }[];
   /** 3D models (Meshy, Sky 2026-10-18) for props and marvels; anything missing is drawn in code. */
-  models?: Partial<Record<PropKind | MarvelKind, string>>;
+  models?: Record<string, string>;
   /** 皮膚位 (reserved for the shop, Sky 2026-10-18: no shop UI yet): which skin each slot uses. */
   slots: { landmark: string; tile: string; dice: string; building: string };
 };
@@ -93,6 +93,16 @@ export const SPACE_ISLE: Theme = {
     worldTree: "/models/realm/worldTree.glb",
     goldMine: "/models/realm/goldMine.glb",
     waterfall: "/models/realm/waterfall.glb",
+    // Sky's drawings (2026-10-20): the owner's towers (magenta parts take the owner's colour) and the middle landmark
+    tower1: "/models/realm/tower1.glb",
+    tower2: "/models/realm/tower2.glb",
+    tower3: "/models/realm/tower3.glb",
+    tower4: "/models/realm/tower4.glb",
+    fountain: "/models/realm/fountain.glb",
+    bigFountain: "/models/realm/bigFountain.glb",
+    clockTower: "/models/realm/clockTower.glb",
+    wheelStand: "/models/realm/wheelStand.glb",
+    wheel: "/models/realm/wheel.glb",
   },
 };
 

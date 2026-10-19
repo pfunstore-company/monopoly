@@ -619,7 +619,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       await tween(180, (k) => old.scale.set(1, Math.max(0.01, 1 - k), 1));
       root.remove(old);
     }
-    const t = towerOf(lv, colour);
+    const t = towerModel(lv, colour) ?? towerOf(lv, colour);
     t.position.set(at.x, cellTop(at.x, at.z), at.z);
     t.lookAt(pads[i].x, t.position.y, pads[i].z); // its front faces the road
     root.add(t);
@@ -629,6 +629,32 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       const m = plotScale[i];
       t.scale.set(m * (1 + squeeze), m * Math.max(0.01, s), m * (1 + squeeze));
     });
+  };
+  /** A textured model's material whose pure magenta parts take the owner's colour (Sky's drawings, 2026-10-20). */
+  const ownerTinted = (m: any, colour: any) => {
+    const mm = m.clone();
+    const u = { value: colour.clone() };
+    mm.onBeforeCompile = (sh: any) => {
+      sh.uniforms.uOwner = u;
+      sh.fragmentShader =
+        "uniform vec3 uOwner;\n" +
+        sh.fragmentShader.replace(
+          "#include <map_fragment>",
+          "#include <map_fragment>\nfloat mg = smoothstep(0.06, 0.22, min(diffuseColor.r, diffuseColor.b) - diffuseColor.g);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uOwner * (0.45 + 0.75 * max(diffuseColor.r, diffuseColor.b)), mg);",
+        );
+    };
+    mm.customProgramCacheKey = () => "owner";
+    return mm;
+  };
+  /** The owner's tower from Sky's drawings (shop, flats, office, skyscraper), if loaded. */
+  const TOWER_TALL = [0, 0.62, 0.95, 1.3, 1.95];
+  const towerModel = (lv: number, colour: any) => {
+    const g = placed(`tower${lv}`, TOWER_TALL[lv]);
+    if (!g) return null;
+    g.traverse((x: any) => {
+      if (x.isMesh) x.material = ownerTinted(x.material, colour);
+    });
+    return g;
   };
   const cellTop = (x: number, z: number) => {
     let best = 0.2, bd = 1e9;
@@ -709,11 +735,8 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       g.add(m);
       return m;
     };
-    const model = placed(kind, kind === "worldTree" ? 3.4 : kind === "goldMine" ? 1.7 : 1.8);
-    if (model) {
-      if (kind === "goldMine") model.scale.set(1.25, 1, 1.25);
-      g.add(model);
-    }
+    const model = placed(kind, kind === "worldTree" ? 3.4 : kind === "goldMine" ? 1.9 : 1.8);
+    if (model) g.add(model);
     if (kind === "worldTree") {
       if (!model) add(new T.Mesh(new T.CylinderGeometry(0.2, 0.36, 1.8, 8), trunkM), 0, 0.9, 0);
       const crownM = new T.MeshStandardMaterial({ color: lin(0x4fd36a), roughness: 0.7, flatShading: true, emissive: lin(0x1d6b2a), emissiveIntensity: 0.4 });
@@ -734,9 +757,8 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         add(new T.Mesh(new T.ConeGeometry(0.55, 0.85, 7), goldOre), 0, 1.75, 0);
         const door = add(new T.Mesh(new T.CircleGeometry(0.28, 16, 0, Math.PI), new T.MeshBasicMaterial({ color: 0x1a1208 })), 0, 0.02, 1.02);
         door.castShadow = false;
-      } else add(new T.Mesh(new T.ConeGeometry(0.4, 0.6, 7), goldOre), 0, 1.85, -0.1);
-      // gold heaped round it (the model's own rock has none)
-      for (let k = 0; k < 7; k++) add(new T.Mesh(new T.OctahedronGeometry(0.13 + (k % 3) * 0.04), goldOre), Math.cos(k * 0.9 + 0.3) * 1.25, 0.12, Math.sin(k * 0.9 + 0.3) * 1.05 + 0.2);
+        for (let k = 0; k < 7; k++) add(new T.Mesh(new T.OctahedronGeometry(0.13 + (k % 3) * 0.04), goldOre), Math.cos(k * 0.9 + 0.3) * 1.25, 0.12, Math.sin(k * 0.9 + 0.3) * 1.05 + 0.2);
+      }
     } else {
       const cliffM = new T.MeshStandardMaterial({ color: lin(0x6f6a7c), roughness: 0.95, flatShading: true });
       if (!model) {
@@ -815,7 +837,33 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       g.add(m);
       return m;
     };
-    if (kind === "fountain" || kind === "bigFountain") {
+    const drops = (s: number) => {
+      for (let k = 0; k < 12; k++) {
+        const d = new T.Sprite(new T.SpriteMaterial({ map: o.glowTex, color: 0xbfeaff, blending: T.AdditiveBlending, depthWrite: false, transparent: true }));
+        d.scale.set(0.12, 0.12, 1);
+        d.userData.drop = k;
+        d.userData.size = s;
+        g.add(d);
+      }
+    };
+    // Sky's drawings made 3D (2026-10-20); the shapes below are the fallback while they load.
+    const LANDMARK_MODEL: Record<string, [string, number]> = { fountain: ["fountain", 0.95], bigFountain: ["bigFountain", 1.35], clockTower: ["clockTower", 2.9] };
+    const lm = LANDMARK_MODEL[kind] && placed(LANDMARK_MODEL[kind][0], LANDMARK_MODEL[kind][1]);
+    const stand = kind === "ferrisWheel" ? placed("wheelStand", 2.5) : null;
+    const wheelModel = stand ? placed("wheel", 2.4) : null;
+    if (lm) {
+      g.add(lm);
+      if (kind !== "clockTower") drops(kind === "fountain" ? 1.05 : 1.5);
+    } else if (stand && wheelModel) {
+      g.add(stand);
+      const pivot = new T.Group();
+      pivot.position.set(0, 2.5 * 0.82, 0.3);
+      wheelModel.position.y = -1.2;
+      pivot.add(wheelModel);
+      g.add(pivot);
+      g.userData.wheel = pivot;
+      g.rotation.y = 0.25;
+    } else if (kind === "fountain" || kind === "bigFountain") {
       const s = kind === "fountain" ? 0.65 : 1;
       add(new T.Mesh(new T.CylinderGeometry(s, s * 1.05, 0.28, 24), stone), 0.14);
       add(new T.Mesh(new T.CylinderGeometry(s * 0.88, s * 0.88, 0.05, 24), waterM), 0.28);

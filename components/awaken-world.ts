@@ -89,16 +89,17 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     const d = new T.Vector3(p.x - centre.x, 0, Math.min(0, (p.z - centre.z) * 0.8));
     return d.lengthSq() > 0.01 ? d.normalize() : new T.Vector3(0, 0, -1);
   };
-  // Along the front the outside is toward the camera, so those buildings go inside the ring instead.
+  // Every building stands outside the ring, a little apart from its lot (Sky 2026-10-19: none in the middle).
   const plots = pads.map((p) => {
-    const front = p.z - centre.z > 3;
-    const dir = front ? new T.Vector3(centre.x - p.x, 0, centre.z - p.z).normalize() : outward(p);
-    return p.clone().addScaledVector(dir, 1.3); // Sky 2026-10-19: a little gap between the building and the lot
+    const d = new T.Vector3(p.x - centre.x, 0, p.z - centre.z).normalize();
+    return p.clone().addScaledVector(d, 1.3);
   });
+  /** Along the front the buildings stand between the camera and their lot, so they stay lower there. */
+  const plotScale = pads.map((p) => (p.z - centre.z > 2.6 ? 0.6 : p.z - centre.z > 1.5 ? 0.8 : 1));
   const marvelAt = [0, 1, 2].map((z) => {
     const six = pads.slice(z * 6, z * 6 + 6);
     const c = six.reduce((s, p) => s.add(p), new T.Vector3()).multiplyScalar(1 / 6);
-    return c.addScaledVector(outward(c), 2.6);
+    return c.addScaledVector(outward(c), 3.1);
   });
   const middleAt = new T.Vector3(centre.x, 0, centre.z + 0.6);
 
@@ -117,7 +118,8 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       const d = segDist(x, z), inner = inside(x, z);
       // A wobbly shore 1.9–2.6 out from the road.
       const reach = 2.05 + 0.55 * (0.5 + 0.5 * Math.sin(Math.atan2(z - centre.z, x - centre.x) * 5 + 1.3)) * hash(Math.round(x * 2), Math.round(z * 2));
-      if (!inner && d > reach) continue;
+      // …and the land bulges out under each area's marvel spot.
+      if (!inner && d > reach && !marvelAt.some((m: any) => Math.hypot(m.x - x, m.z - z) < 1.8)) continue;
       let best = 0, bd = 1e9;
       pads.forEach((p, i) => {
         const dd = (p.x - x) ** 2 + (p.z - z) ** 2;
@@ -213,33 +215,60 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     m.position.set(plazaAt.x, TOP + 0.006, plazaAt.z);
     root.add(m);
   }
-  // 地格 (Sky 2026-10-19: a tidy ring like a real 大富翁 board): square stone slabs along the road, each turned to it,
-  // a little tinted by its area; the frame round the top takes the owner's colour.
-  const SLAB = 1.1;
-  const frameGeo = (() => {
-    const outer = new T.Shape(), h = SLAB / 2, w = 0.07;
-    outer.moveTo(-h, -h); outer.lineTo(h, -h); outer.lineTo(h, h); outer.lineTo(-h, h); outer.lineTo(-h, -h);
-    const hole = new T.Path();
-    hole.moveTo(-h + w, -h + w); hole.lineTo(-h + w, h - w); hole.lineTo(h - w, h - w); hole.lineTo(h - w, -h + w); hole.lineTo(-h + w, -h + w);
-    outer.holes.push(hole);
-    const g = new T.ExtrudeGeometry(outer, { depth: 0.04, bevelEnabled: false });
-    g.rotateX(-Math.PI / 2);
-    return g;
-  })();
+  // 地格 (Sky 2026-10-19): curved stone slabs that together make one round road — each a piece of the ring between
+  // its neighbours, a little tinted by its area; the frame round the top takes the owner's colour.
+  const ringCurve = new T.CatmullRomCurve3([plazaAt, ...pads].map((p: any) => new T.Vector3(p.x, 0, p.z)), true);
+  const N = pads.length + 1;
+  /** The outline of a piece of road from u0 to u1 (0…1 round the ring), `half` either side of its middle line. */
+  const piece = (u0: number, u1: number, half: number) => {
+    const steps = 10, left: [number, number][] = [], right: [number, number][] = [];
+    for (let k = 0; k <= steps; k++) {
+      const u = (u0 + ((u1 - u0) * k) / steps + 1) % 1;
+      const at = ringCurve.getPointAt(u), t = ringCurve.getTangentAt(u);
+      const nx = -t.z, nz = t.x, l = Math.hypot(nx, nz) || 1;
+      left.push([at.x + (nx / l) * half, at.z + (nz / l) * half]);
+      right.push([at.x - (nx / l) * half, at.z - (nz / l) * half]);
+    }
+    return [...left, ...right.reverse()];
+  };
+  const shapeOf = (pts: [number, number][]) => {
+    const sh = new T.Shape();
+    pts.forEach(([x, z], k) => (k ? sh.lineTo(x, -z) : sh.moveTo(x, -z)));
+    sh.closePath();
+    return sh;
+  };
   const slabMats = [0xd9efe8, 0xe2f1d2, 0xf3e3c8].map((c) => new T.MeshStandardMaterial({ color: lin(c), roughness: 0.7 }));
-  const slabGeo = new T.BoxGeometry(SLAB, TOP, SLAB);
-  pads.forEach((p, i) => {
-    const prev = i ? pads[i - 1] : plazaAt, next = pads[i + 1] ?? plazaAt;
-    const g = new T.Group();
-    g.position.copy(p);
-    g.rotation.y = Math.atan2(next.x - prev.x, next.z - prev.z);
-    const body = new T.Mesh(slabGeo, slabMats[Math.floor(i / 6)]);
-    body.position.y = TOP / 2;
+  // where each square sits along the ring (the points are evenly spaced, so close to j / N)
+  const uOf = [plazaAt, ...pads].map((p: any) => {
+    let best = 0, bd = 1e9;
+    for (let k = 0; k < 400; k++) {
+      const q = ringCurve.getPointAt(k / 400), d = (q.x - p.x) ** 2 + (q.z - p.z) ** 2;
+      if (d < bd) { bd = d; best = k / 400; }
+    }
+    return best;
+  });
+  const span = (j: number) => {
+    const u = uOf[j], prev = uOf[(j + N - 1) % N], next = uOf[(j + 1) % N];
+    const back = ((u - prev + 1) % 1) / 2, fwd = ((next - u + 1) % 1) / 2;
+    return [u - back, u + fwd] as const;
+  };
+  pads.forEach((_p, i) => {
+    const [u0, u1] = span(i + 1);
+    const outline = piece(u0 + 0.0015, u1 - 0.0015, 0.6); // a thin seam between neighbours
+    const body = new T.Mesh(new T.ExtrudeGeometry(shapeOf(outline), { depth: TOP, bevelEnabled: false }), slabMats[Math.floor(i / 6)]);
+    body.geometry.rotateX(-Math.PI / 2);
     body.castShadow = body.receiveShadow = true;
-    const rim = new T.Mesh(frameGeo, goldMat.clone());
+    // the frame: the slab's top outline with the middle cut out
+    const frame = shapeOf(outline);
+    const inner = piece(u0 + 0.004, u1 - 0.004, 0.52);
+    const hole = new T.Path();
+    inner.forEach(([x, z], k) => (k ? hole.lineTo(x, -z) : hole.moveTo(x, -z)));
+    hole.closePath();
+    frame.holes.push(hole);
+    const rim = new T.Mesh(new T.ExtrudeGeometry(frame, { depth: 0.04, bevelEnabled: false }), goldMat.clone());
+    rim.geometry.rotateX(-Math.PI / 2);
     rim.position.y = TOP - 0.035;
-    g.add(body, rim);
-    root.add(g);
+    root.add(body, rim);
     padRims.push(rim);
   });
   const roadMat = new T.MeshBasicMaterial({ color: lin(theme.road), transparent: true, opacity: 0.55, depthWrite: false });
@@ -597,7 +626,8 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     towers[i] = t;
     await tween(560 + lv * 110, (k) => {
       const s = easeBack(k), squeeze = 0.15 * Math.sin(k * Math.PI) * (1 - k);
-      t.scale.set(1 + squeeze, Math.max(0.01, s), 1 + squeeze);
+      const m = plotScale[i];
+      t.scale.set(m * (1 + squeeze), m * Math.max(0.01, s), m * (1 + squeeze));
     });
   };
   const cellTop = (x: number, z: number) => {

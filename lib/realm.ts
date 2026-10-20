@@ -232,7 +232,7 @@ export function hostReport(realm: Realm, guests: number, houseRent: number) {
 export type Listing = { id: string; owner: string; land: LandKind; realm: Realm };
 export const LISTINGS: readonly Listing[] = [
   { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", null], ticket: 8, minPlayers: 2, deck: "standard" } },
-  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild", isle: "volcano" } },
+  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild" } },
   { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard" } },
 ];
 

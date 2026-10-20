@@ -313,7 +313,7 @@ function RealmEditor({
             <p className="text-center text-lg font-black">{t("開局設定")}</p>
             <>
               {/* Which island to play on (Sky 2026-10-17: everything open while testing). */}
-              <div className="grid grid-cols-2 gap-2" data-testid="isle-pick">
+              {ISLANDS.length > 1 ? <div className="grid grid-cols-2 gap-2" data-testid="isle-pick">
                 {ISLANDS.map((isle) => {
                   const on = (realm.isle ?? ISLANDS[0].id) === isle.id;
                   return (
@@ -332,7 +332,7 @@ function RealmEditor({
                     </button>
                   );
                 })}
-              </div>
+              </div> : null}
               <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-black" data-testid="realm-summary">
                 <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
                 <span>{t("每人 {n} 轉", { n: turnsOf(realm) })}</span>

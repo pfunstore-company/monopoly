@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { NestDragon } from "@/components/nest-dragon";
 import { loadPet } from "@/components/wallet-store";
-import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, PAINTED_ISLANDS } from "@/lib/islands";
+import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 
 const SHOW_SPOTS = false;
 /** The board stones float 0.8 world units up (39 picture pixels seen from the camera) and are 84 pixels across. */
@@ -143,12 +143,12 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           />
         ))}
         {/* 龍仔 (Sky 2026-10-17): no nest; the player's dragon wanders the plaza and now and then flies up to look at us. */}
-        <span
+        {island.awaken ? null : <span
           className="pointer-events-none absolute aspect-square -translate-x-1/2 -translate-y-1/2"
           style={{ left: pct(island.nest.x, island.w), top: pct(island.nest.y, island.h), width: pct(island.nest.w * 1.2, island.w) }}
         >
           <NestDragon element={pet?.element ?? 0} stage={pet?.stage ?? 0} span={(island.nest.w * 1.2) / 75} plaza={island.nest.w} />
-        </span>
+        </span>}
         {/* The start: a bigger stone in front of the 龍巢, as high as the others. */}
         {island.tiles === "stones" ? <img
           src="/art/islands/stone.webp"
@@ -195,7 +195,6 @@ export function IslandHome() {
   const strip = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState(false);
-  const ISLANDS = PAINTED_ISLANDS();
   const pages = ISLANDS.length + 1;
   const go = (n: number) => strip.current?.scrollTo({ left: n * strip.current.clientWidth, behavior: "smooth" });
 
@@ -215,7 +214,7 @@ export function IslandHome() {
           </section>
         ))}
         <section className="flex h-full w-full shrink-0 snap-center flex-col items-center justify-center gap-3 px-6 text-center text-white" data-testid="island-next">
-          <img src="/art/islands/forest.webp" alt="" draggable={false} className="max-h-[55%] opacity-30 brightness-0 invert-[0.35]" />
+          <img src="/art/islands/space.webp" alt="" draggable={false} className="max-h-[55%] opacity-30 brightness-0 invert-[0.35]" />
           <p className="text-lg font-black">{t("下一個島")}</p>
           <p className="rounded-full bg-white/20 px-3 py-0.5 text-sm font-bold">{t("即將推出")}</p>
         </section>

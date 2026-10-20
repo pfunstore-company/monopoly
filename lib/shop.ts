@@ -96,7 +96,9 @@ export function newCollection(): Collection {
   return {
     heroes: { vampire: 1, jiangshi: 1, mummy: 1, zombie: 1 },
     shards: 0,
-    specials: {},
+    // 測試期 (Sky: nothing locked while testing): a new player gets one of each UR card too.
+    specials: Object.fromEntries(UR_IDS.map((id) => [id, 1])),
+    urGift: true,
     converted: false,
     sinceSSR: { hero: 0, special: 0 },
     starter: false,

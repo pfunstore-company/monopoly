@@ -15,10 +15,12 @@ describe("商店", () => {
     assert.equal(out.collection.sinceSSR.hero, 10);
   });
   it("every special draw is a 特別卡 and old materials convert once", () => {
-    const out = draw(newCollection(), "special", 10, () => 0.5);
+    const count = (c: ReturnType<typeof newCollection>) => Object.values(c.specials).reduce((a, b) => a + (b ?? 0), 0);
+    const start = newCollection();
+    const out = draw(start, "special", 10, () => 0.5);
     assert.equal(out.pulls.length, 10);
     assert.ok(out.pulls.every((p) => p.prize.kind === "special"));
-    assert.equal(Object.values(out.collection.specials).reduce((a, b) => a + (b ?? 0), 0), 10);
+    assert.equal(count(out.collection) - count(start), 10);
     const conv = convertMaterials(newCollection(), { wood: 40, stone: 20, gold: 0 }, () => 0);
     assert.equal(conv.cards, 2);
     assert.equal(convertMaterials(conv.collection, { wood: 40, stone: 20, gold: 0 }, () => 0).cards, 0);

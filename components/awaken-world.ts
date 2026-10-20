@@ -411,6 +411,18 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
   /** How tall each model stands (world units) at prop size 1. */
   const PROP_TALL: Partial<Record<PropKind, number>> = { pine: 1.1, round: 1.0, crystal: 0.5, gold: 0.45, rock: 0.3 };
   const useModels = () => {
+    // Towers put up before the models arrived become the drawn ones.
+    towers.forEach((old, i) => {
+      if (!old || !level[i]) return;
+      const t = towerModel(Math.max(1, Math.min(4, level[i])), new T.Color(colourOf[i]).convertSRGBToLinear());
+      if (!t) return;
+      t.position.copy(old.position);
+      t.rotation.copy(old.rotation);
+      t.scale.copy(old.scale);
+      root.remove(old);
+      root.add(t);
+      towers[i] = t;
+    });
     for (const s of sleepers) {
       const tall = PROP_TALL[s.kind];
       const g = tall && models[s.kind] ? placed(s.kind, tall * s.size) : null;

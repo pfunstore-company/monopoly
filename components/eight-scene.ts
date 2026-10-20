@@ -222,7 +222,8 @@ function layoutFor(board: BoardId): Layout {
       hub: [0, 3, 0],
       stations: [[R, 1.5], [-R, 1.5], [R * 0.7, -R * 0.7], [-R * 0.7, -R * 0.7], [2.2, R], [-2.2, R]],
       wide: [40, 28, 22],
-      wideTarget: [0, 0.3],
+      // a little further back, so the back of the ring isn't under the players' cards (2026-10-20)
+      wideTarget: [0, -0.9],
     };
   }
   if (board === "island") {

@@ -2,7 +2,7 @@ import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CHARACTERS } from "./characters";
 import { coinEnergy, formatEnergy } from "./energy";
 import { THEMES } from "./themes";
-import { ELEMENTS, HATCH_ROLLS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
+import { ELEMENTS, HATCH_ROLLS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, dayPasses, feedOne, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
@@ -247,6 +247,8 @@ export type Action =
   | { type: "upgrade"; building: number }
   | { type: "pick-pet"; element: number }
   | { type: "grow-pet" }
+  /** 餵食: one 🍖 (0) or 💎 (1) from the store, by hand. */
+  | { type: "feed-pet"; kind: 0 | 1 }
   | { type: "steal-pick"; index: number }
   | { type: "shop-buy"; index: number }
   /** 睇廣告雙倍: the last landing's reward again (chest, wheel, 龍巢 only), once. */
@@ -456,7 +458,13 @@ function readPet(value: unknown): Pet | null {
     stage: pet.stage,
     hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0,
     rolls: inRange(pet.rolls, 0, HATCH_ROLLS) ? pet.rolls : 0,
+    ...(pair(pet.meal) ? { meal: pair(pet.meal)! } : {}),
+    ...(pair(pet.grown) ? { grown: pair(pet.grown)! } : {}),
   };
+}
+
+function pair(value: unknown): [number, number] | null {
+  return Array.isArray(value) && inRange(value[0], 0, 9999) && inRange(value[1], 0, 9999) ? [value[0], value[1]] : null;
 }
 
 function inRange(value: unknown, min: number, max: number): value is number {
@@ -634,15 +642,18 @@ function rollDay(state: GameState, now: number, dayKey: string): GameState {
     "rule",
     "新的一天。",
   );
-  // The monster eats once for each day gone by (at most a week's worth).
-  if (!next.pet) return next;
+  // 餵食 (Sky 2026-10-21): the dragon is fed by hand. Each day gone by without its meal it goes hungry; coming
+  // back after a long time away costs at most one stage.
+  if (!next.pet || next.pet.stage === 0) return next;
   const days = Math.min(7, Math.max(1, daysBetween(state.dayKey, dayKey)));
+  const from = next.pet.stage;
   for (let day = 0; day < days; day++) {
     const pet = next.pet as Pet;
-    const fed = eatForDay(pet, next.meat, next.juice);
-    next = { ...next, pet: fed.pet, meat: fed.meat, juice: fed.juice };
+    const fed = dayPasses(pet);
+    next = { ...next, pet: fed.pet };
     if (fed.dropped) next = pushLog(next, "rule", `${petName(pet)}餓咗兩日，跌返做${STAGE_NAMES[fed.pet.stage]}。`);
-    else if (!fed.ate) next = pushLog(next, "rule", `${petName(pet)}今日冇嘢食，肚餓。再餓一日會跌階段。`);
+    else if (!fed.ate) next = pushLog(next, "rule", `${petName(pet)}冇食到嘢，好冇精神。再餓一日會跌階段。`);
+    if ((next.pet as Pet).stage < from) break;
   }
   return next;
 }
@@ -908,6 +919,15 @@ export function reduce(state: GameState, action: Action): GameState {
     case "pick-pet": {
       if (state.pet || !inRange(action.element, 0, ELEMENTS.length - 1)) return state;
       return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0, rolls: 0 } }, "you", `你領咗一隻龍蛋（${ELEMENTS[action.element].name}屬性）。`);
+    }
+    case "feed-pet": {
+      const pet = state.pet;
+      const have = action.kind === 0 ? state.meat : state.juice;
+      if (!pet || have <= 0) return state;
+      const fed = feedOne(pet, action.kind);
+      if (!fed) return state;
+      const next = { ...state, pet: fed.pet, ...(action.kind === 0 ? { meat: state.meat - 1 } : { juice: state.juice - 1 }) };
+      return fed.grew ? pushLog(next, "you", `${petName(pet)}食飽飽，長大做${STAGE_NAMES[fed.pet.stage]}！`) : next;
     }
     case "grow-pet": {
       const pet = state.pet;

@@ -22,7 +22,7 @@ export type Monster = {
   setMood(mood: Mood): void;
 };
 
-export type Mood = "rest" | "walk" | "fly" | "sleep" | "happy";
+export type Mood = "rest" | "walk" | "fly" | "sleep" | "happy" | "tired";
 
 const PALETTE = [
   // 光
@@ -260,21 +260,26 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
         // Lying down: legs folded out front and back, body on the ground.
         fold = 1.25;
         y = -0.15;
+      } else if (mood === "tired") {
+        // 冇精神 (Sky 2026-10-21): hungry — sagging low, nose down, a slow heavy breath, now and then a sigh.
+        fold = 0.55;
+        y = -0.07 - Math.max(0, Math.sin(k * 0.7)) ** 8 * 0.03;
+        pitch = 0.16;
       } else {
         y = Math.abs(Math.sin(k * 2.2)) * 0.01;
       }
       body.position.y = y * h;
       body.rotation.z = 0;
       body.rotation.x = pitch;
-      const breathe = asleep ? Math.sin(k * 1.6) * 0.025 : Math.sin(k * 4.4) * 0.01;
+      const breathe = asleep || mood === "tired" ? Math.sin(k * 1.6) * 0.025 : Math.sin(k * 4.4) * 0.01;
       body.scale.set(h * (1 + breathe), h * (1 - breathe * 0.6), h);
       for (const leg of legs) {
         const swing = stride * Math.sin(k * pace + leg.phase);
         leg.part.rotation.x = swing + tuck * (leg.front ? -1 : 1) + fold * (leg.front ? -1 : 1);
       }
       if (tail) {
-        const wag = mood === "happy" ? 14 : mood === "walk" ? 6 : asleep ? 0.8 : 2.5;
-        tail.rotation.y = Math.sin(k * wag) * (mood === "happy" ? 0.45 : asleep ? 0.08 : 0.2);
+        const wag = mood === "happy" ? 14 : mood === "walk" ? 6 : asleep || mood === "tired" ? 0.8 : 2.5;
+        tail.rotation.y = Math.sin(k * wag) * (mood === "happy" ? 0.45 : asleep || mood === "tired" ? 0.08 : 0.2);
         tail.rotation.x = mood === "fly" ? -0.2 : 0;
       }
       // Wing angle: positive lifts them. Fast beats in flight, up and fluttering when happy,
@@ -284,7 +289,7 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
           ? Math.sin(k * 16) * 0.6
           : mood === "happy"
             ? 0.25 + Math.sin(k * 12) * 0.3
-            : asleep
+            : asleep || mood === "tired"
               ? -0.45
               : Math.sin(k * 7) * 0.35 * Math.max(0, Math.sin(k * 0.8)) ** 2;
       if (wingL) wingL.rotation.z = -beat;

@@ -14,6 +14,9 @@ export type Pet = {
   hungry: number;
   /** Board rolls since the egg was taken (it hatches by itself at HATCH_ROLLS). */
   rolls: number;
+  /** 餵食 (Sky 2026-10-21): 🍖 and 💎 fed by hand today (its daily meal, UPKEEP), and fed toward the next stage. */
+  meal?: readonly [number, number];
+  grown?: readonly [number, number];
 };
 
 /** A dragon egg hatches after this many rolls on the daily board (the public table doesn't count). */
@@ -90,20 +93,61 @@ export function growNeed(pet: Pet): readonly [number, number] | null {
   return STAGE_NEED[pet.stage] ?? null;
 }
 
+/** Today's meal still to give (🍖, 💎). */
+export function mealLeft(pet: Pet): [number, number] {
+  const [m, j] = UPKEEP[pet.stage] ?? [0, 0];
+  const [fm, fj] = pet.meal ?? [0, 0];
+  return [Math.max(0, m - fm), Math.max(0, j - fj)];
+}
+/** Has had today's meal (an egg never needs one). */
+export function fedToday(pet: Pet): boolean {
+  const [m, j] = mealLeft(pet);
+  return pet.stage === 0 || (m === 0 && j === 0);
+}
+/** Fed toward the next stage so far. */
+export function grownSoFar(pet: Pet): [number, number] {
+  return [pet.grown?.[0] ?? 0, pet.grown?.[1] ?? 0];
+}
+/** Whether this one would still take some of `kind` (for today's meal or for growing). */
+export function wants(pet: Pet, kind: 0 | 1): boolean {
+  if (pet.stage === 0) return false;
+  if (mealLeft(pet)[kind] > 0) return true;
+  const need = growNeed(pet);
+  return !!need && grownSoFar(pet)[kind] < need[kind];
+}
+
 /**
- * A day goes by: the monster eats its ration from your store if it can; otherwise it goes hungry,
- * and a second hungry day in a row knocks it back a grade (never below N once hatched).
+ * Feed one 🍖 (kind 0) or 💎 (kind 1) by hand: it goes to today's meal first, then toward the next stage.
+ * When both amounts for the next stage are in, it grows (and starts the new stage from nothing).
  */
-export function eatForDay(pet: Pet, meat: number, juice: number): { pet: Pet; meat: number; juice: number; ate: boolean; dropped: boolean } {
-  const [needMeat, needJuice] = UPKEEP[pet.stage] ?? [0, 0];
-  if (meat >= needMeat && juice >= needJuice) {
-    return { pet: { ...pet, hungry: 0 }, meat: meat - needMeat, juice: juice - needJuice, ate: true, dropped: false };
+export function feedOne(pet: Pet, kind: 0 | 1): { pet: Pet; grew: boolean } | null {
+  if (!wants(pet, kind)) return null;
+  const meal: [number, number] = [pet.meal?.[0] ?? 0, pet.meal?.[1] ?? 0];
+  if (mealLeft(pet)[kind] > 0) {
+    meal[kind] += 1;
+    return { pet: { ...pet, meal, hungry: fedToday({ ...pet, meal }) ? 0 : pet.hungry }, grew: false };
   }
+  const grown = grownSoFar(pet);
+  grown[kind] += 1;
+  const need = growNeed(pet)!;
+  if (grown[0] >= need[0] && grown[1] >= need[1]) {
+    // A new stage eats more: what was already fed today still counts toward its meal.
+    return { pet: { ...pet, stage: pet.stage + 1, grown: [0, 0], hungry: 0 }, grew: true };
+  }
+  return { pet: { ...pet, grown }, grew: false };
+}
+
+/**
+ * A day goes by. Fed by hand that day: all well. Not fed: it goes hungry, and a second hungry day in a row
+ * knocks it back a grade (never below N). `firstDay` false means a day nobody was here at all.
+ */
+export function dayPasses(pet: Pet): { pet: Pet; ate: boolean; dropped: boolean } {
+  const ate = fedToday(pet);
+  const next: Pet = { ...pet, meal: [0, 0] };
+  if (ate) return { pet: { ...next, hungry: 0 }, ate: true, dropped: false };
   const hungry = pet.hungry + 1;
-  if (hungry >= HUNGRY_DROP && pet.stage > 1) {
-    return { pet: { ...pet, stage: pet.stage - 1, hungry: 0 }, meat, juice, ate: false, dropped: true };
-  }
-  return { pet: { ...pet, hungry: Math.min(hungry, HUNGRY_DROP) }, meat, juice, ate: false, dropped: false };
+  if (hungry >= HUNGRY_DROP && pet.stage > 1) return { pet: { ...next, stage: pet.stage - 1, hungry: 0, grown: [0, 0] }, ate: false, dropped: true };
+  return { pet: { ...next, hungry: Math.min(hungry, HUNGRY_DROP) }, ate: false, dropped: false };
 }
 
 /** Whole days from one day key (YYYY-MM-DD) to another, 0 when the same or going backwards. */

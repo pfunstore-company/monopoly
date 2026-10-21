@@ -27,7 +27,7 @@ import { PrizeWheel, WHEEL_SPIN_MS } from "@/components/prize-wheel";
 import { Button } from "@/components/ui/button";
 import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
-import { ELEMENTS, HATCH_ROLLS, growNeed, rollElement } from "@/lib/pet";
+import { ELEMENTS, HATCH_ROLLS, fedToday, rollElement } from "@/lib/pet";
 
 const ELEMENT_COLOURS = ELEMENTS.map((e) => e.colour);
 import {
@@ -449,9 +449,8 @@ export function DailyGame() {
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = cheapestUpgrade(state);
   const buildable = buildCost !== null && state.points >= buildCost;
-  const petNeed = state.pet ? growNeed(state.pet) : null;
   /** No monster yet, or enough food to grow it: the 🐾 button glows. */
-  const petReady = !state.pet || (!!petNeed && state.meat >= petNeed[0] && state.juice >= petNeed[1]);
+  const petReady = !state.pet || (state.pet.stage > 0 && !fedToday(state.pet));
 
   const resetBoard = () => {
     if (!resetArmed) {
@@ -492,7 +491,7 @@ export function DailyGame() {
       <PetScreen
         state={state}
         onPick={(element) => dispatch({ type: "pick-pet", element })}
-        onGrow={() => dispatch({ type: "grow-pet" })}
+        onFeed={(kind) => dispatch({ type: "feed-pet", kind })}
         onClose={() => setPetOpen(false)}
       />
     );
@@ -539,7 +538,7 @@ export function DailyGame() {
           preview
             ? { element: preview.element, stage: preview.stage, legend: false, hungry: false }
             : state.pet
-            ? { element: state.pet.element, stage: state.pet.stage, legend: false, hungry: state.pet.hungry > 0, rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
+            ? { element: state.pet.element, stage: state.pet.stage, legend: false, hungry: !fedToday(state.pet), rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
             : { element: 0, stage: 0, legend: false, hungry: false }
         }
         onEggTap={() => !pending?.running && setPetOpen(true)}
@@ -695,7 +694,7 @@ export function DailyGame() {
             draggable={false}
             className={cn("size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", petReady && "animate-[icon-glow_1.8s_ease-in-out_infinite]")}
           />
-          {state.pet && state.pet.hungry > 0 ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
+          {state.pet && !fedToday(state.pet) ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
         </button>
         <button
           type="button"

@@ -8,8 +8,29 @@ import { useEffect, useRef } from "react";
  * One monster on a little floating stone, turning slowly; drag to spin it round. Remount (key) to
  * show a different monster or stage.
  */
-export function PetView({ element, stage, legend = false, hungry = false, onPet }: { element: number; stage: number; legend?: boolean; hungry?: boolean; onPet?: () => void }) {
+export function PetView({
+  element,
+  stage,
+  legend = false,
+  hungry = false,
+  tired = false,
+  feeds = 0,
+  onPet,
+}: {
+  element: number;
+  stage: number;
+  legend?: boolean;
+  hungry?: boolean;
+  /** 冇精神: today's meal not given yet — it sags and waits (Sky 2026-10-21). */
+  tired?: boolean;
+  /** Goes up by one for every bite fed: it chomps happily. */
+  feeds?: number;
+  onPet?: () => void;
+}) {
   const box = useRef<HTMLDivElement>(null);
+  // What can change without rebuilding the scene.
+  const live = useRef({ tired, feeds, onPet });
+  live.current = { tired, feeds, onPet };
   useEffect(() => {
     let dead = false;
     let stop = () => undefined as void;
@@ -69,8 +90,10 @@ export function PetView({ element, stage, legend = false, hungry = false, onPet 
         })();
         const hearts: { s: any; born: number; x: number; z: number; drift: number }[] = [];
         const height = monster.height * (monster.model ? MODEL_CLOSE_UP : 1) * (stage === 0 ? 1.1 : 1.25);
-        let greetUntil = 0, greetFrom = 0, nextHeart = 0;
-        const greet = (now: number, long: boolean) => {
+        let greetUntil = 0, greetFrom = 0, nextHeart = 0, hearty = true;
+        const greet = (now: number, long: boolean, bite = false) => {
+          // Hearts when it's well, or when it's just been given a bite; a hungry dragon only perks up.
+          hearty = bite || (!hungry && !live.current.tired);
           if (stage === 0) return;
           greetFrom = now;
           greetUntil = now + (long ? 2800 : 1800);
@@ -113,7 +136,7 @@ export function PetView({ element, stage, legend = false, hungry = false, onPet 
           // A tap (not a spin) on the dragon: it's pleased to be patted.
           if (drag !== null && Math.abs(e.clientX - downX) < 6) {
             greet(performance.now(), false);
-            onPet?.();
+            live.current.onPet?.();
           }
           drag = null;
         };
@@ -121,10 +144,18 @@ export function PetView({ element, stage, legend = false, hungry = false, onPet 
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
         let started = false;
+        let seenFeeds = live.current.feeds;
+        let mood = "";
         const tick = (now: number) => {
           if (!started) {
             started = true;
             greet(now + 250, true);
+          }
+          // A bite: a short happy chomp with hearts.
+          if (live.current.feeds !== seenFeeds) {
+            seenFeeds = live.current.feeds;
+            greet(now, false, true);
+            greetUntil = now + 900;
           }
           const greeting = now < greetUntil;
           if (drag === null && !greeting) spin += 0.004;
@@ -133,11 +164,14 @@ export function PetView({ element, stage, legend = false, hungry = false, onPet 
           if (greeting) spin = spin * (1 - facing * 0.12);
           turn.rotation.y = Math.sin(spin) * 0.9 * (1 - facing) + (greeting && !hungry ? Math.sin((now - greetFrom) / 120) * 0.12 : 0);
           turn.position.y = Math.sin(now / 900) * 0.06;
-          if (!greeting && greetUntil) {
-            greetUntil = 0;
-            monster.setMood("rest");
+          // Between greetings: sagging if it hasn't had its meal, otherwise at ease.
+          const want = greeting ? "happy" : live.current.tired ? "tired" : "rest";
+          if (want !== mood) {
+            mood = want;
+            monster.setMood(want as "happy" | "tired" | "rest");
           }
-          if (greeting && !hungry && now >= nextHeart) {
+          if (!greeting && greetUntil) greetUntil = 0;
+          if (greeting && hearty && now >= nextHeart) {
             addHeart(now);
             nextHeart = now + 260 + Math.random() * 200;
           }

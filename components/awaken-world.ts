@@ -119,7 +119,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       // A wobbly shore 1.9–2.6 out from the road.
       const reach = 2.05 + 0.55 * (0.5 + 0.5 * Math.sin(Math.atan2(z - centre.z, x - centre.x) * 5 + 1.3)) * hash(Math.round(x * 2), Math.round(z * 2));
       // …and the land bulges out under each area's marvel spot.
-      if (!inner && d > reach && !marvelAt.some((m: any) => Math.hypot(m.x - x, m.z - z) < 1.8)) continue;
+      if (!inner && d > reach && !marvelAt.some((m: any) => Math.hypot(m.x - x, m.z - z) < 2.4)) continue;
       let best = 0, bd = 1e9;
       pads.forEach((p, i) => {
         const dd = (p.x - x) ** 2 + (p.z - z) ** 2;
@@ -779,8 +779,6 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       }
       add(new T.Mesh(new T.CylinderGeometry(0.95, 0.95, 0.08, 24), waterM), 0, 0.06, model ? 1.05 : 0.65);
       add(new T.Mesh(new T.BoxGeometry(0.72, 1.7, 0.05), waterM), 0, 0.85, model ? 0.62 : 0.27);
-      // and on over the island's edge, down into space
-      add(new T.Mesh(new T.BoxGeometry(0.5, 4.5, 0.05), waterM), 0.85, -2.1, 1.05);
     }
     const crown = new T.Mesh(new T.TorusGeometry(0.3, 0.06, 8, 24), new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.5, roughness: 0.3 }));
     crown.position.y = kind === "worldTree" ? 3.6 : kind === "goldMine" ? 2.6 : 2.2;
@@ -866,6 +864,28 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     if (lm) {
       g.add(lm);
       if (kind !== "clockTower") drops(kind === "fountain" ? 1.05 : 1.5);
+      else {
+        // The clock face is painted on the model (front, about halfway up); real hands go over it so they turn.
+        const H = 2.9, k = H / 1.9;
+        const face = new T.Group();
+        face.position.set(0, 0.52 * H, 0.35 * k + 0.012);
+        const dial = new T.Mesh(new T.CircleGeometry(0.21 * k * 0.78, 32), new T.MeshStandardMaterial({ color: 0xfaf6ee, roughness: 0.6 }));
+        const handM = new T.MeshStandardMaterial({ color: lin(0xc9961f), metalness: 0.6, roughness: 0.3 });
+        const handOf = (len: number, wide: number) => {
+          const geo = new T.BoxGeometry(wide, len, 0.015);
+          geo.translate(0, len / 2 - 0.02, 0);
+          const h = new T.Mesh(geo, handM);
+          h.position.z = 0.01;
+          return h;
+        };
+        const minute = handOf(0.24, 0.035), hour = handOf(0.15, 0.05);
+        const pin = new T.Mesh(new T.CircleGeometry(0.03, 12), handM);
+        pin.position.z = 0.025;
+        face.add(dial, hour, minute, pin);
+        g.add(face);
+        g.userData.hand = minute;
+        g.userData.hourHand = hour;
+      }
     } else if (stand && wheelModel) {
       g.add(stand);
       const pivot = new T.Group();
@@ -999,6 +1019,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         w.children.forEach((c: any) => c.userData.cab && (c.rotation.z = -w.rotation.z));
       }
       if (m?.userData.hand) m.userData.hand.rotation.z = -now / 800;
+      if (m?.userData.hourHand) m.userData.hourHand.rotation.z = -now / 9600;
       m?.children.forEach((c: any) => {
         if (c.userData.drop === undefined) return;
         const k = ((now / 1100 + c.userData.drop / 12) % 1), a = (c.userData.drop / 12) * Math.PI * 2, s = c.userData.size;

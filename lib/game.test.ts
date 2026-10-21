@@ -502,7 +502,7 @@ describe("daily board", () => {
 
   it("is fed by hand: today's meal first, then toward the next stage; unfed days make it hungry", () => {
     const pet = { element: 0, stage: 3, hungry: 0, rolls: 0 };
-    let s = { ...start(), pet, meat: 20, juice: 5 };
+    let s: GameState = { ...start(), pet, meat: 20, juice: 5 };
     for (let k = 0; k < 8; k++) s = reduce(s, { type: "feed-pet", kind: 0 });
     s = reduce(s, { type: "feed-pet", kind: 1 });
     s = reduce(s, { type: "feed-pet", kind: 1 });
@@ -520,7 +520,7 @@ describe("daily board", () => {
     const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0, rolls: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
     assert.equal(away.pet?.stage, 3, "a week away: one stage down at most");
     // Growing: N needs 3 🍖 a day, then 100 🍖 and 12 💎.
-    let n = { ...start(), pet: { element: 0, stage: 1, hungry: 0, rolls: 60 }, meat: 200, juice: 20 };
+    let n: GameState = { ...start(), pet: { element: 0, stage: 1, hungry: 0, rolls: 60 }, meat: 200, juice: 20 };
     for (let k = 0; k < 103; k++) n = reduce(n, { type: "feed-pet", kind: 0 });
     for (let k = 0; k < 12; k++) n = reduce(n, { type: "feed-pet", kind: 1 });
     assert.equal(n.pet?.stage, 2, "N to R");

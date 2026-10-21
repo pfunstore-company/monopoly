@@ -263,6 +263,8 @@ export type Seat = {
   rewind?: number;
   /** 冰河時代: misses the next turn. */
   frozen?: boolean;
+  /** 封印: 特別卡 taken out of this hand, each back after `laps` more laps. */
+  sealed?: { card: Special; laps: number }[];
 };
 
 /**
@@ -294,7 +296,14 @@ export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" |
  * 黃金之路: on your next roll every empty lot you walk over becomes yours · iceage 冰河時代: every opponent misses
  * their next turn.
  */
-export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | UrCard;
+export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | "seal" | "mirror" | UrCard;
+/**
+ * 牽制卡 (Sky 2026-10-21), SSR: seal 封印 — one opponent's 特別卡 (UR first, then 反射鏡) is taken out of their hand
+ * for SEAL_LAPS of their laps · mirror 反射鏡 (works by itself, like 護盾): the next attack 特別卡 aimed at you does
+ * nothing to you, and whoever played it misses their next turn.
+ */
+export const SEAL_LAPS = 3;
+export const ATTACK_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "iceage", "takeover", "tornado"];
 /**
  * UR 特別卡 (Sky 2026-10-18), stronger than SSR: takeover 霸王收購 takes the richest opponent's three best lots
  * (their 護盾 blocks it) · tornado 末日龍捲風: every opponent building drops a level (never below one) and every
@@ -303,7 +312,7 @@ export type Special = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" 
  */
 export type UrCard = "takeover" | "tornado" | "rewind";
 export const UR_CARDS: readonly UrCard[] = ["takeover", "tornado", "rewind"];
-export const SPECIAL_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "goldroad", "iceage", ...UR_CARDS];
+export const SPECIAL_CARDS: readonly Special[] = ["dragon", "meteor", "blackhole", "goldroad", "iceage", "seal", "mirror", ...UR_CARDS];
 /** The SSR ones (what bots may bring). */
 export const SSR_CARDS: readonly Special[] = SPECIAL_CARDS.filter((c) => !isUr(c));
 export const SPECIALS_IN = 3;
@@ -374,6 +383,11 @@ export type TableEvent =
   | { kind: "again"; seat: number }
   /** 霸王收購 stopped by the target's 護盾. */
   | { kind: "guarded"; seat: number; by: number }
+  /** 反射鏡: `seat`'s attack card did nothing to `by`, and `seat` misses a turn. */
+  | { kind: "mirrored"; seat: number; by: number; power: Power }
+  /** 封印: `seat` sealed `target`'s card · unsealed: it came back. */
+  | { kind: "sealed"; seat: number; target: number; card: Special }
+  | { kind: "unsealed"; seat: number; card: Special }
   | { kind: "freed"; seat: number }
   | { kind: "step"; seat: number; to: Spot; passedStart: boolean }
   | { kind: "fork"; seat: number }
@@ -603,7 +617,14 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const startPay = START_PAY * (heroOf(player) === "pumpkin" ? PUMPKIN_START : 1);
   // 三葉草 (Sky 2026-10-18): a 轉 is one whole lap — it counts when you come round to the plaza, not each roll.
   const lapDone = passedStart && state.board === "clover" ? { turnsTaken: player.turnsTaken + 1 } : {};
-  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
+  let moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
+  // 封印: every lap brings a sealed card nearer; at zero it's back in the hand.
+  if (passedStart && player.sealed?.length) {
+    const back = player.sealed.filter((s) => s.laps <= 1).map((s) => s.card);
+    const left = player.sealed.filter((s) => s.laps > 1).map((s) => ({ ...s, laps: s.laps - 1 }));
+    for (const card of back) events.push({ kind: "unsealed", seat, card });
+    moved = withSeat(moved, seat, { sealed: left.length ? left : undefined, powers: [...moved.seats[seat].powers, ...back] });
+  }
   // 領地 has no cards lying on the squares, so coming round to the plaza deals one more often (Sky 2026-10-18).
   if (passedStart && state.board === "clover") {
     // Every lap deals one ordinary 功能卡 (Sky 2026-10-18); the 特別卡 are only the ones brought in.
@@ -963,7 +984,9 @@ export function bestTarget(state: TableState, seat: number, unlockedOnly = false
   return theirs[0][0];
 }
 
-/** 霸王收購: the opponent whose land is worth most, and their three best lots. */
+/** 霸王收購 (two lots since Sky 2026-10-21; was three). */
+export const TAKEOVER_LOTS = 2;
+/** 霸王收購: the opponent whose land is worth most, and their TAKEOVER_LOTS best lots. */
 function richestOpponent(state: TableState, seat: number): { owner: number; keys: string[] } | null {
   let best: { owner: number; keys: string[]; worth: number } | null = null;
   for (const o of opponents(state, seat)) {
@@ -971,14 +994,15 @@ function richestOpponent(state: TableState, seat: number): { owner: number; keys
     if (!theirs.length) continue;
     const worth = theirs.reduce((sum, [key, d]) => sum + rentOf(key, d.level, state.board), 0);
     theirs.sort(([ka, a], [kb, b]) => b.level - a.level || rentOf(kb, b.level, state.board) - rentOf(ka, a.level, state.board) || (ka < kb ? -1 : 1));
-    if (!best || worth > best.worth) best = { owner: o, keys: theirs.slice(0, 3).map(([k]) => k), worth };
+    if (!best || worth > best.worth) best = { owner: o, keys: theirs.slice(0, TAKEOVER_LOTS).map(([k]) => k), worth };
   }
   return best && { owner: best.owner, keys: best.keys };
 }
 
 /** Whether a power card can do anything right now (shield only works by itself). */
 export function canPlay(state: TableState, seat: number, power: Power): boolean {
-  if (power === "shield") return false;
+  if (power === "shield" || power === "mirror") return false;
+  if (power === "seal") return sealTarget(state, seat) !== null;
   if (power === "dragon" || power === "meteor") return bestTarget(state, seat) !== null;
   if (power === "blackhole") return opponents(state, seat).some((o) => !(state.seats[o].spot.on === "loop" && state.seats[o].spot.i === 0));
   if (power === "iceage") return opponents(state, seat).some((o) => !state.seats[o].frozen);
@@ -995,7 +1019,72 @@ export function canPlay(state: TableState, seat: number, power: Power): boolean 
   return bestTarget(state, seat) !== null;
 }
 
+/** 封印's pick: whose card and which — a UR card first, then a 反射鏡, then any other 特別卡. */
+export function sealTarget(state: TableState, seat: number, prefer?: number): { target: number; index: number } | null {
+  let best: { target: number; index: number; score: number } | null = null;
+  for (const o of opponents(state, seat)) {
+    state.seats[o].powers.forEach((card, index) => {
+      if (!isSpecial(card)) return;
+      const score = (isUr(card) ? 3 : card === "mirror" ? 2 : 1) + (o === prefer ? 0.5 : 0);
+      if (!best || score > best.score) best = { target: o, index, score };
+    });
+  }
+  return best && { target: (best as { target: number }).target, index: (best as { index: number }).index };
+}
+
+const sameSpot = (a: Spot, b: Spot) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Who a 特別卡 attack would hit (the ones a 反射鏡 can turn away). */
+function attackVictims(state: TableState, seat: number, power: Power): number[] {
+  if (power === "dragon") { const key = bestTarget(state, seat); return key ? [state.deeds[key].owner] : []; }
+  if (power === "takeover") { const r = richestOpponent(state, seat); return r ? [r.owner] : []; }
+  return opponents(state, seat);
+}
+
 function playPower(state: TableState, seat: number, index: number, target: number | undefined, events: TableEvent[]): TableState {
+  const power = state.seats[seat].powers[index];
+  if (!power || !canPlay(state, seat, power) || !ATTACK_CARDS.includes(power as Special)) return playPowerRaw(state, seat, index, target, events);
+  const mirrors = attackVictims(state, seat, power).filter((o) => state.seats[o].powers.includes("mirror"));
+  if (!mirrors.length) return playPowerRaw(state, seat, index, target, events);
+  // Play it with the mirrored players' things put back afterwards.
+  const mark = events.length;
+  let next = playPowerRaw(state, seat, index, target, events);
+  const touched: number[] = [];
+  const deeds = { ...next.deeds };
+  for (const o of mirrors) {
+    const was = state.seats[o], now = next.seats[o];
+    let hit = now.frozen !== was.frozen || !sameSpot(now.spot, was.spot) || now.jailed !== was.jailed;
+    for (const [key, d] of Object.entries(state.deeds)) {
+      if (d.owner !== o) continue;
+      const after = next.deeds[key];
+      if (!after || after.owner !== d.owner || after.level !== d.level) { hit = true; deeds[key] = d; }
+    }
+    if (!hit) continue;
+    touched.push(o);
+    const m = now.powers.indexOf("mirror");
+    next = withSeat(next, o, { frozen: was.frozen, spot: was.spot, jailed: was.jailed, powers: now.powers.filter((_, i) => i !== m) });
+  }
+  if (!touched.length) return next;
+  next = { ...next, deeds };
+  // Tidy what was announced: the mirrored players' lots and seats come out of the played event; a set the
+  // attacker didn't really finish isn't announced.
+  for (let i = mark; i < events.length; i += 1) {
+    const e = events[i];
+    if (e.kind === "played") {
+      const levels = e.levels && Object.fromEntries(Object.entries(e.levels).filter(([key]) => !touched.includes(state.deeds[key]?.owner ?? -1)));
+      const targets = e.targets?.filter((o) => !touched.includes(o));
+      events[i] = { ...e, ...(levels ? { levels } : {}), ...(targets ? { targets } : {}) };
+    }
+  }
+  for (let i = events.length - 1; i >= mark; i -= 1) {
+    const e = events[i];
+    if (e.kind === "setDone" && e.seat === seat && setOwnerOf(next, Object.keys(BOARDS.clover.squares).find((k) => BOARDS.clover.squares[k].group === e.zone && BOARDS.clover.squares[k].kind === "lot") ?? "") !== seat) events.splice(i, 1);
+  }
+  for (const o of touched) events.push({ kind: "mirrored", seat, by: o, power });
+  return withSeat(next, seat, { frozen: true });
+}
+
+function playPowerRaw(state: TableState, seat: number, index: number, target: number | undefined, events: TableEvent[]): TableState {
   const player = state.seats[seat];
   const power = player.powers[index];
   if (!power || !canPlay(state, seat, power)) return state;
@@ -1073,6 +1162,14 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
     }
     events.push({ kind: "played", seat, power, levels });
     return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "seal") {
+    const { target: o, index: at } = sealTarget(state, seat, target)!;
+    const victim = state.seats[o];
+    const card = victim.powers[at] as Special;
+    events.push({ kind: "played", seat, power, target: o });
+    events.push({ kind: "sealed", seat, target: o, card });
+    return withSeat(withSeat(state, seat, hand), o, { powers: victim.powers.filter((_, i) => i !== at), sealed: [...(victim.sealed ?? []), { card, laps: SEAL_LAPS }] });
   }
   if (power === "rewind") {
     events.push({ kind: "played", seat, power });

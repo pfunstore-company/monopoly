@@ -44,11 +44,11 @@ describe("UR 特別卡", () => {
     const t = newTable([seat(0, ["takeover", "rewind", "dragon", "meteor"]), seat(1)], {}, "clover");
     assert.deepEqual(t.seats[0].powers, ["takeover", "dragon", "meteor"]);
   });
-  it("霸王收購 takes the richest opponent's three best lots", () => {
+  it("霸王收購 takes the richest opponent's two best lots", () => {
     let t = table(["takeover"]);
     t = { ...t, deeds: { o1: { owner: 1, level: 4 }, o2: { owner: 1, level: 3 }, o3: { owner: 1, level: 2 }, o4: { owner: 1, level: 1 }, o9: { owner: 2, level: 1 } } };
     t = reduceTable(t, { type: "power", index: 0 });
-    assert.deepEqual(["o1", "o2", "o3", "o4", "o9"].map((k) => t.deeds[k].owner), [0, 0, 0, 1, 2]);
+    assert.deepEqual(["o1", "o2", "o3", "o4", "o9"].map((k) => t.deeds[k].owner), [0, 0, 1, 1, 2]);
     assert.equal(t.deeds.o1.level, 4);
   });
   it("霸王收購 is stopped by a 護盾", () => {

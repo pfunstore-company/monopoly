@@ -19,6 +19,7 @@ import {
   botMove,
   canPlay,
   isSpecial,
+  isUr,
   type Power,
   netWorth,
   newTable,
@@ -111,8 +112,10 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
   blackhole: { name: "黑洞", icon: "🌀", what: "全部對手被吸走，送返起點" },
   goldroad: { name: "黃金之路", icon: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
   iceage: { name: "冰河時代", icon: "❄️", what: "全部對手結冰，停一轉" },
+  seal: { name: "封印", icon: "🔮", what: "封住一個對手一張特別卡 3 圈（先封 UR）" },
+  mirror: { name: "反射鏡", icon: "🪞", what: "擋走下一張攻擊特別卡，出卡嗰個停一轉（自動用）" },
   // UR (Sky 2026-10-18)
-  takeover: { name: "霸王收購", icon: "👑", what: "搶走最有錢對手最值錢嘅三塊地（佢有護盾就擋到）" },
+  takeover: { name: "霸王收購", icon: "👑", what: "搶走最有錢對手最值錢嘅兩塊地（佢有護盾就擋到）" },
   tornado: { name: "末日龍捲風", icon: "🌪️", what: "對手全部樓降一級，你自己全部樓升一級" },
   rewind: { name: "時光倒流", icon: "⏳", what: "今轉再擲多兩次，行過嘅冇人地全部變你嘅" },
 };
@@ -355,6 +358,11 @@ export function EightBoard({
     return () => setTrack("home");
   }, []);
   const [table, setTable] = useState<TableState>(() => newTable(players, rules, board));
+  // 對手卡組 (Sky 2026-10-21): on 領地 everyone's 特別卡 are shown before the first roll; UR holders wear a crown all game.
+  const [opening] = useState(() => table.seats.map((seat) => seat.powers.filter(isSpecial)));
+  const urSeats = opening.map((cards) => cards.some((c) => isUr(c)));
+  const [reveal, setReveal] = useState(() => opening.some((cards) => cards.length > 0));
+  const revealRef = useRef(reveal);
   const publicTable = !realm && guestTicket === undefined;
   const [reward, setReward] = useState<SpecialId | null>(null);
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
@@ -483,6 +491,22 @@ export function EightBoard({
             say("{name} 用護盾擋住咗霸王收購！", { name: who(event.by) });
             void scene.floatText(event.by, "🛡️", "#38BDF8");
             await scene.wait(900);
+            break;
+          case "mirrored":
+            play("smash");
+            say("{name} 嘅反射鏡彈返轉頭！{target} 停一轉", { name: who(event.by), target: who(event.seat) });
+            await Promise.all([scene.floatText(event.by, "🪞", "#A78BFA"), scene.sparkle(event.by)]);
+            void scene.floatText(event.seat, "❄️", "#38BDF8");
+            await scene.wait(700);
+            break;
+          case "sealed":
+            play("smash");
+            say("{name} 封印咗 {target} 嘅「{card}」3 圈", { name: who(event.seat), target: who(event.target), card: tRef.current(POWER_INFO[event.card].name) });
+            await Promise.all([scene.floatText(event.target, "🔮", "#A78BFA"), scene.puff(event.target)]);
+            break;
+          case "unsealed":
+            say("{name} 嘅「{card}」解封返嚟", { name: who(event.seat), card: tRef.current(POWER_INFO[event.card].name) });
+            void scene.floatText(event.seat, "🔓", "#A78BFA");
             break;
           case "setDone":
             play("build");
@@ -852,7 +876,7 @@ export function EightBoard({
         setLoaded("ready");
         aim(scene, stateRef.current.current);
         say("輪到 {name}", { name: tRef.current(stateRef.current.seats[stateRef.current.current].name) });
-        setBusy(false);
+        if (!revealRef.current) setBusy(false);
       })
       .catch(() => {
         if (!cancelled) setLoaded("failed");
@@ -1012,6 +1036,11 @@ export function EightBoard({
               >
                 {rankOf[index] + 1}
               </span>
+              {urSeats[index] ? (
+                <span className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 animate-pulse text-base drop-shadow-[0_0_6px_#FBD000]" data-testid={`ur-crown-${index}`}>
+                  👑
+                </span>
+              ) : null}
               <Face seat={seat} className="size-7 border-2 text-base" />
               <span className="max-w-full truncate text-[10px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-xs font-black tabular-nums animate-[bump_0.35s_ease-out] [&_img]:size-3.5">
@@ -1178,6 +1207,49 @@ export function EightBoard({
             </div>
             <button type="button" className="mt-3 cursor-pointer text-sm font-black text-[#3B5BA9]" onClick={() => setPicking(null)}>
               {me.powers[picking] === "monster" ? t("唔打住") : t("唔換住")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {reveal ? (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#0B1030]/75 px-4" data-testid="card-reveal">
+          <div className="w-full max-w-sm rounded-3xl border-4 border-[#FBD000] bg-white p-4">
+            <p className="mb-3 text-center text-lg font-black">{t("對手卡組")}</p>
+            <div className="flex flex-col gap-2">
+              {table.seats.map((seat, i) => (
+                <div key={seat.name} className={cn("flex items-center gap-2 rounded-2xl p-1.5", urSeats[i] ? "bg-[#FFF4C2] ring-2 ring-[#FBD000]" : "bg-[#EEF2FF]")}>
+                  <div className="relative shrink-0">
+                    {urSeats[i] ? <span className="absolute -top-3 left-1/2 -translate-x-1/2 animate-pulse text-sm drop-shadow-[0_0_6px_#FBD000]">👑</span> : null}
+                    <Face seat={seat} className="size-10 border-[3px]" />
+                  </div>
+                  <span className="w-12 truncate text-xs font-black">{t(seat.name)}</span>
+                  <div className="flex flex-1 justify-end gap-1.5">
+                    {opening[i].length ? (
+                      opening[i].map((card, k) => (
+                        <div key={k} className="flex w-12 flex-col items-center">
+                          <CardPic power={card} className="size-11" />
+                          <span className="w-full truncate text-center text-[9px] font-black">{t(POWER_INFO[card].name)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs font-black text-[#94A3B8]">—</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-4 w-full cursor-pointer rounded-2xl bg-[#FBD000] py-2.5 font-black shadow-[0_4px_0_#B98F00]"
+              data-testid="reveal-go"
+              onClick={() => {
+                revealRef.current = false;
+                setReveal(false);
+                if (loaded === "ready") setBusy(false);
+              }}
+            >
+              {t("開始")}
             </button>
           </div>
         </div>

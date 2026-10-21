@@ -26,8 +26,6 @@ import {
   setTicket,
   tablesOf,
   turnsOf,
-  type BuildingKind,
-  type LandKind,
   type Listing,
   type Realm,
   type Wallet,
@@ -36,11 +34,6 @@ import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState, type ReactNode } from "react";
 
-/** Sky's drawn pictures (2026-10-01) for lands, materials and buildings, in place of emoji. */
-const pic = (name: string, className: string) => <img src={`/art/realm/${name}.webp`} alt="" draggable={false} className={cn("inline-block object-contain", className)} />;
-const ICONS: Record<BuildingKind, string> = { table: "table", rent: "rent", station: "station" };
-const LAND_ICONS: Record<LandKind, string> = { island: "island", mountain: "mountain", volcano: "volcano" };
-const LAND_NAMES: Record<LandKind, string> = { island: "海島", mountain: "山城", volcano: "火山" };
 
 function decorOf(realm: Realm): Decor {
   return { houses: housesOf(realm), facade: false, stations: count(realm, "station"), nest: { level: loadNestLevel(), pet: loadPet() }, isle: realm.isle };
@@ -201,7 +194,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
       ) : (
         <RealmEditor realm={realm} onChange={update} onHost={() => setPicking("host")} />
       )}
-      {picking ? <CharacterPick onPick={(pick, specials) => enter(picking, pick, specials)} onClose={() => setPicking(null)} /> : null}
+      {picking ? <CharacterPick noUr={picking !== "host" && picking.realm.noUr} onPick={(pick, specials) => enter(picking, pick, specials)} onClose={() => setPicking(null)} /> : null}
     </main>
   );
 }
@@ -220,19 +213,32 @@ function WalletBar({ wallet }: { wallet: Wallet }) {
 /** Everyone's land that is open: ticket and fewest players shown on each. */
 function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wallet; onJoin: (listing: Listing) => void; onMine: () => void }) {
   const { t } = useLang();
-  const card = (key: string, owner: string, land: Realm, action: ReactNode, mine = false) => (
-    <div key={key} className={cn("flex items-center gap-3 rounded-3xl border-4 bg-white p-3", mine ? "border-[#8B5CF6]" : "border-[#FBD000]")}>
-      {land.land ? pic(LAND_ICONS[land.land], "size-16 shrink-0") : <span className="text-4xl">🌱</span>}
-      <span className="flex flex-1 flex-col">
-        <span className="font-black">{t("{owner} 嘅{land}", { owner: t(owner), land: land.land ? t(LAND_NAMES[land.land]) : "" })}</span>
-        <span className="text-xs font-bold text-[#3B5BA9]">
-          {land.ticket === 0 ? t("免費入場") : t("門票 {n}", { n: formatEnergy(tableEnergy(land.ticket)) })} · {t("最少 {n} 人開局", { n: land.minPlayers })}
+  // Sky 2026-10-21: the space island picture and its name, the host's houses in words, who's waiting and the UR rule.
+  const card = (key: string, owner: string, land: Realm, action: ReactNode, mine = false, waiting?: number) => {
+    const houses = land.slots.filter((k) => k === "rent").length, stations = land.slots.filter((k) => k === "station").length;
+    return (
+      <div key={key} className={cn("flex items-center gap-3 rounded-3xl border-4 bg-white p-3", mine ? "border-[#8B5CF6]" : "border-[#FBD000]")}>
+        <img src="/art/islands/space.webp" alt="" draggable={false} className="size-16 shrink-0 object-contain" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="font-black">{t("{owner} 嘅深空奇幻島", { owner: t(owner) })}</span>
+          <span className="text-xs font-bold text-[#3B5BA9]">
+            {land.ticket === 0 ? t("免費入場") : t("門票 {n}", { n: formatEnergy(tableEnergy(land.ticket)) })}
+            {waiting !== undefined ? <> · {t("等緊 {n}/{m} 人", { n: waiting, m: land.minPlayers })}</> : <> · {t("最少 {n} 人開局", { n: land.minPlayers })}</>}
+          </span>
+          <span className="flex flex-wrap gap-1 text-[11px] font-black">
+            {houses ? <span className="rounded-full bg-[#FFE4E1] px-2 py-0.5 text-[#B91C1C]">{t("主人屋 ×{n}（踩中要交租）", { n: houses })}</span> : null}
+            {stations ? <span className="rounded-full bg-[#E0F2FE] px-2 py-0.5 text-[#0369A1]">{t("車站 ×{n}", { n: stations })}</span> : null}
+            {land.noUr ? (
+              <span className="rounded-full bg-[#E5E7EB] px-2 py-0.5 text-[#475569]">{t("唔准帶 UR 卡")}</span>
+            ) : (
+              <span className="rounded-full bg-gradient-to-r from-[#FF3B3B] to-[#A855F7] px-2 py-0.5 text-white">{t("可以帶 UR 卡")}</span>
+            )}
+          </span>
         </span>
-        <span className="text-sm">{land.slots.map((kind, i) => (kind ? <span key={i}>{pic(ICONS[kind], "size-6")}</span> : null))}</span>
-      </span>
-      {action}
-    </div>
-  );
+        {action}
+      </div>
+    );
+  };
   return (
     <section className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-3 overflow-y-auto p-3" data-testid="realm-list">
       {realm.land
@@ -263,6 +269,8 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
               <img src={ENERGY_ICON} alt="" className="inline size-4 align-[-3px]" /> {formatEnergy(tableEnergy(listing.realm.ticket))}
             </span>
           </button>,
+          false,
+          listing.waiting,
         ),
       )}
       <p className="text-center text-xs font-bold text-white/80">{t("練習版：地主同客人都係電腦")}</p>
@@ -415,7 +423,7 @@ function Stepper({
 }
 
 /** 揀角色 before playing on someone's land (testing: every character can be picked). */
-function CharacterPick({ onPick, onClose }: { onPick: (pick: number, specials: Special[]) => void; onClose: () => void }) {
+function CharacterPick({ onPick, onClose, noUr }: { onPick: (pick: number, specials: Special[]) => void; onClose: () => void; noUr?: boolean }) {
   const { t } = useLang();
   const [pick, setPick] = useState(0);
   const [held, setHeld] = useState<Partial<Record<Special, number>>>({});
@@ -453,10 +461,10 @@ function CharacterPick({ onPick, onClose }: { onPick: (pick: number, specials: S
         </div>
         {/* 特別卡 to bring in (Sky 2026-10-18): up to three, used up when the game starts. */}
         <p className="text-center text-sm font-black">{t("帶特別卡入場（最多 {n} 張）", { n: SPECIALS_IN })}</p>
-        <p className="-mt-2 text-center text-[11px] font-bold text-[#475569]">{t("UR 卡每局最多帶一張")}</p>
+        <p className="-mt-2 text-center text-[11px] font-bold text-[#475569]">{noUr ? t("呢個島唔准帶 UR 卡") : t("UR 卡每局最多帶一張")}</p>
         <div className="grid grid-cols-4 gap-1.5" data-testid="special-pick">
           {SPECIAL_CARDS.map((id) => {
-            const have = held[id] ?? 0, n = count(id);
+            const have = noUr && isUr(id) ? 0 : (held[id] ?? 0), n = count(id);
             return (
               <button
                 key={id}

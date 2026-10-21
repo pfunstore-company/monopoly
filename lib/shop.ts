@@ -26,15 +26,18 @@ export const AD_ENERGY = 20;
  * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each
  * used once and then gone. They replace the old 房屋券 and materials.
  */
-export type SpecialId = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | "takeover" | "tornado" | "rewind";
+export type SpecialId = "dragon" | "meteor" | "blackhole" | "goldroad" | "iceage" | "seal" | "mirror" | "takeover" | "tornado" | "rewind";
 export const SPECIALS: { id: SpecialId; name: string; emoji: string; what: string; ur?: true }[] = [
   { id: "dragon", name: "龍息", emoji: "🐉", what: "龍飛出嚟燒走對手一塊地，變返冇人擁有" },
   { id: "meteor", name: "天降隕石", emoji: "☄️", what: "揀一個區，對手喺嗰區嘅地全部降一級" },
   { id: "blackhole", name: "黑洞", emoji: "🌀", what: "全部對手被吸走，送返起點" },
   { id: "goldroad", name: "黃金之路", emoji: "✨", what: "下一次擲骰，行過嘅冇人地全部變你嘅" },
   { id: "iceage", name: "冰河時代", emoji: "❄️", what: "全部對手結冰，停一轉" },
+  // 牽制卡 (Sky 2026-10-21)
+  { id: "seal", name: "封印", emoji: "🔮", what: "封住一個對手一張特別卡 3 圈（先封 UR）" },
+  { id: "mirror", name: "反射鏡", emoji: "🪞", what: "擋走下一張攻擊特別卡，出卡嗰個停一轉（自動用）" },
   // UR (Sky 2026-10-18): stronger than SSR, 3% of the special pool, one per game at most.
-  { id: "takeover", name: "霸王收購", emoji: "👑", what: "搶走最有錢對手最值錢嘅三塊地（佢有護盾就擋到）", ur: true },
+  { id: "takeover", name: "霸王收購", emoji: "👑", what: "搶走最有錢對手最值錢嘅兩塊地（佢有護盾就擋到）", ur: true },
   { id: "tornado", name: "末日龍捲風", emoji: "🌪️", what: "對手全部樓降一級，你自己全部樓升一級", ur: true },
   { id: "rewind", name: "時光倒流", emoji: "⏳", what: "今轉再擲多兩次，行過嘅冇人地全部變你嘅", ur: true },
 ];

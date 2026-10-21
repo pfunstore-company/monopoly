@@ -138,6 +138,8 @@ export type Realm = {
   deck: DeckId;
   /** Which painted island the games are played on (lib/islands id; Sky 2026-10-17). */
   isle?: string;
+  /** No UR 特別卡 allowed in (Sky 2026-10-21). */
+  noUr?: boolean;
 };
 
 export const REALM_KEY = "boolionaire-realm-v2";
@@ -229,11 +231,12 @@ export function hostReport(realm: Realm, guests: number, houseRent: number) {
 
 // ---------- Other people's land, for the 領地列表 (practice: computer owners) ----------
 
-export type Listing = { id: string; owner: string; land: LandKind; realm: Realm };
+/** `waiting`: players already sitting there (practice: made up). */
+export type Listing = { id: string; owner: string; land: LandKind; realm: Realm; waiting: number };
 export const LISTINGS: readonly Listing[] = [
-  { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", null], ticket: 8, minPlayers: 2, deck: "standard" } },
-  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild" } },
-  { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard" } },
+  { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", null], ticket: 8, minPlayers: 2, deck: "standard" }, waiting: 1 },
+  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild", noUr: true }, waiting: 2 },
+  { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard" }, waiting: 1 },
 ];
 
 // ---------- Saving ----------

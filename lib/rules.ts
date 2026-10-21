@@ -7,7 +7,7 @@ export const MAX_LEVEL = 5;
 /** Money to raise a building to level 1, 2, 3, 4 and 5. Tunable. */
 export const LEVEL_COSTS = [5, 10, 20, 30, 50] as const;
 /** Each later theme's buildings cost this much more than the one before (1.5×, rounded). */
-export const THEME_COST_STEP = 1.5;
+export const THEME_COST_STEP = 2; // Sky 2026-10-21: was 1.5 — six pages took a keen player about 12 days
 /** Attack (and defence) each finished theme adds for good, so moving on to an empty page never weakens you. */
 export const THEME_ATTACK = 10;
 /** Finishing a theme pays dice (up to the cap) and money (shown as 能量) that grows with the theme. */
@@ -27,6 +27,15 @@ export const HIT_MAX = 85;
 
 export function hitChance(attack: number, defense: number): number {
   return Math.max(HIT_MIN, Math.min(HIT_MAX, HIT_BASE + HIT_PER_POINT * (attack - defense)));
+}
+
+/**
+ * 高級樓 (Sky 2026-10-21): the top buildings are harder to hit and pay more when knocked down —
+ * by the target's level: hit chance taken off (points) and the payout multiplied.
+ */
+export const TOP_LEVEL_EDGE: Record<number, { chance: number; pay: number }> = { 4: { chance: 8, pay: 1.5 }, 5: { chance: 15, pay: 2 } };
+export function targetEdge(level: number | undefined): { chance: number; pay: number } {
+  return (level !== undefined && TOP_LEVEL_EDGE[level]) || { chance: 0, pay: 1 };
 }
 
 /** Points for a landed smash: 3 when evenly matched, more for beating a stronger rival, 1–5. */

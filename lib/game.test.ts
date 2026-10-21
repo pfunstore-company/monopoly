@@ -297,7 +297,7 @@ describe("daily board", () => {
     assert.equal(state.dice, 8, "5 dice for finishing");
     assert.equal(state.points, 100000 - 50 + 20);
     assert.match(state.log[0]?.text ?? "", /完成咗「水晶星」/);
-    assert.equal(upgradeCost(state, 0), 8, "the second page costs 1.5× (5 → 8)");
+    assert.equal(upgradeCost(state, 0), 10, "the second page costs 2× (5 → 10)");
     assert.equal(defencePower(state), 20, "the finished page still counts for defence: 10 + 10");
     // The last page, once full, stays full and can't be raided.
     const lastPage = THEMES.length - 1;
@@ -571,4 +571,13 @@ it("睇廣告雙倍 doubles a chest once", () => {
   const once = reduce(landed, { type: "ad-double" });
   assert.equal(once.points - landed.points, landed.landing!.points);
   assert.equal(reduce(once, { type: "ad-double" }), once);
+});
+
+describe("高級樓", () => {
+  it("level 4–5 buildings are harder to hit and pay more", async () => {
+    const { targetEdge } = await import("./rules");
+    assert.deepEqual(targetEdge(3), { chance: 0, pay: 1 });
+    assert.deepEqual(targetEdge(4), { chance: 8, pay: 1.5 });
+    assert.deepEqual(targetEdge(5), { chance: 15, pay: 2 });
+  });
 });

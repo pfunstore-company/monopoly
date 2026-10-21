@@ -15,6 +15,7 @@ import {
   LEVEL_ATTACK,
   THEME_ATTACK,
   THEME_REWARD_DICE,
+  targetEdge,
   themeRewardCoins,
   MAX_LEVEL,
   POINTS,
@@ -799,14 +800,16 @@ export function reduce(state: GameState, action: Action): GameState {
       const defenseTotal = rivalPower(state);
       // Attribute match-up (only once your dragon has hatched): ±10 points on the hit chance.
       const edge = matchUp(state);
-      const chance = Math.max(HIT_MIN, Math.min(HIT_MAX, hitChance(attackTotal, defenseTotal) + edge * TYPE_EDGE));
+      // The higher the building aimed at, the harder to hit, and the more it pays.
+      const tall = targetEdge(target === null ? undefined : state.rivalLevels[target]);
+      const chance = Math.max(HIT_MIN, Math.min(HIT_MAX, hitChance(attackTotal, defenseTotal) + edge * TYPE_EDGE - tall.chance));
       const roll = typeof action.roll === "number" && action.roll >= 0 && action.roll < 1 ? action.roll : 0.5;
       const hit = roll * 100 < chance;
         let pointsGained = 0;
         let smashed: number | null = null;
       const shieldBreak = hit && state.enemyShield;
       if (hit) {
-        const smash = smashPoints(attackTotal, defenseTotal);
+        const smash = Math.round(smashPoints(attackTotal, defenseTotal) * tall.pay);
         // Breaking a shield adds 1 more.
         pointsGained = smash + (shieldBreak ? 1 : 0);
         if (standing.length > 0) smashed = target;

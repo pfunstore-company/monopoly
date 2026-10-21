@@ -141,7 +141,7 @@ export function PetScreen({
             <PetView key={`${pet.element}-${pet.stage}-${legend}`} element={pet.element} stage={pet.stage} legend={legend} hungry={pet.hungry > 0} tired={tired} feeds={feeds} onPet={() => play("lucky")} />
             {/* Hungry: a thought bubble with what it wants today. */}
             {tired ? (
-              <div className="pointer-events-none absolute right-4 top-12 animate-[bump_1.6s_ease-in-out_infinite] rounded-3xl border-2 border-white bg-white/95 px-3 py-1.5 text-[#1E3A8A] shadow-lg" data-testid="pet-wants">
+              <div className="pointer-events-none absolute right-4 top-12 animate-[nudge_1.6s_ease-in-out_infinite] rounded-3xl border-2 border-white bg-white/95 px-3 py-1.5 text-[#1E3A8A] shadow-lg" data-testid="pet-wants">
                 <p className="text-[11px] font-black">{t("肚餓…想食：")}</p>
                 <p className="flex items-center gap-1.5 text-sm font-black tabular-nums">
                   {mealLeft(pet)[0] > 0 ? (
@@ -271,10 +271,10 @@ export function PetScreen({
                           "flex h-16 cursor-pointer touch-none select-none items-center justify-center gap-2 rounded-3xl border-4 font-black active:scale-95 disabled:cursor-default",
                           ok
                             ? kind === 0
-                              ? "border-[#FBD000] bg-gradient-to-b from-[#FB923C] to-[#EA580C] text-white shadow-[0_5px_0_#9A3412]"
-                              : "border-[#FBD000] bg-gradient-to-b from-[#A78BFA] to-[#7C3AED] text-white shadow-[0_5px_0_#4C1D95]"
+                              ? "border-[#FBD000] bg-[#F97316] text-white shadow-[0_5px_0_#9A3412]"
+                              : "border-[#FBD000] bg-[#8B5CF6] text-white shadow-[0_5px_0_#4C1D95]"
                             : "border-[#CBD5E1] bg-[#F1F5F9] text-[#94A3B8]",
-                          ok && tired && "animate-[glow_1.8s_ease-in-out_infinite]",
+                          ok && tired && "animate-[nudge_1.6s_ease-in-out_infinite]",
                         )}
                         data-testid={kind === 0 ? "feed-meat" : "feed-gem"}
                       >

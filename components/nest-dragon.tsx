@@ -72,6 +72,8 @@ export function NestDragon({ element, stage, span, plaza }: { element: number; s
           cancelAnimationFrame(frame);
           watch.disconnect();
           renderer.dispose();
+          // Give the WebGL context back at once: iPhones only allow a few, and leaked ones make the next scene blank.
+          renderer.forceContextLoss?.();
           renderer.domElement.remove();
         };
       })

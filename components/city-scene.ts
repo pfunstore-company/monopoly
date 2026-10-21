@@ -2390,6 +2390,8 @@ export function createCityScene(
       canvas.removeEventListener("lostpointercapture", onUp);
       canvas.removeEventListener("wheel", onWheel);
       renderer.dispose();
+      // Give the WebGL context back at once: iPhones only allow a few, and leaked ones make the next scene blank.
+      renderer.forceContextLoss?.();
       canvas.remove();
     },
   };

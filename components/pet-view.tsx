@@ -2,7 +2,7 @@
 
 import { loadThree } from "@/components/eight-scene";
 import { MODEL_CLOSE_UP, buildMonster } from "@/components/monster";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * One monster on a little floating stone, turning slowly; drag to spin it round. Remount (key) to
@@ -31,7 +31,11 @@ export function PetView({
   // What can change without rebuilding the scene.
   const live = useRef({ tired, feeds, onPet });
   live.current = { tired, feeds, onPet };
+  // No 3D (WebGL refused or lost, which happens on iPhones): try once more, then show the drawn dragon.
+  const [tries, setTries] = useState(0);
+  const flat = tries >= 2;
   useEffect(() => {
+    if (flat) return;
     let dead = false;
     let stop = () => undefined as void;
     loadThree()
@@ -39,6 +43,11 @@ export function PetView({
         const host = box.current;
         if (dead || !host) return;
         const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+        if (!renderer.getContext()) throw new Error("no webgl");
+        renderer.domElement.addEventListener("webglcontextlost", (e: Event) => {
+          e.preventDefault();
+          if (!dead) setTries((n) => n + 1);
+        });
         renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
         renderer.outputEncoding = T.sRGBEncoding;
         renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -145,6 +154,9 @@ export function PetView({
         window.addEventListener("pointerup", up);
         let started = false;
         let seenFeeds = live.current.feeds;
+        // 開心就有心心 (Sky 2026-10-21): a fed dragon lets out a heart every few seconds, and finishing
+        // today's meal sets off a big happy bounce full of hearts.
+        let wasTired = live.current.tired, idleHeart = 0;
         let mood = "";
         const tick = (now: number) => {
           if (!started) {
@@ -165,6 +177,15 @@ export function PetView({
           turn.rotation.y = Math.sin(spin) * 0.9 * (1 - facing) + (greeting && !hungry ? Math.sin((now - greetFrom) / 120) * 0.12 : 0);
           turn.position.y = Math.sin(now / 900) * 0.06;
           // Between greetings: sagging if it hasn't had its meal, otherwise at ease.
+          if (wasTired && !live.current.tired) {
+            greet(now, true, true);
+            greetUntil = now + 2600;
+          }
+          wasTired = live.current.tired;
+          if (!greeting && !live.current.tired && !hungry && now >= idleHeart) {
+            if (idleHeart) addHeart(now);
+            idleHeart = now + 2500 + Math.random() * 2000;
+          }
           const want = greeting ? "happy" : live.current.tired ? "tired" : "rest";
           if (want !== mood) {
             mood = want;
@@ -173,7 +194,7 @@ export function PetView({
           if (!greeting && greetUntil) greetUntil = 0;
           if (greeting && hearty && now >= nextHeart) {
             addHeart(now);
-            nextHeart = now + 260 + Math.random() * 200;
+            nextHeart = now + 180 + Math.random() * 150;
           }
           for (let i = hearts.length - 1; i >= 0; i--) {
             const hrt = hearts[i];
@@ -185,7 +206,7 @@ export function PetView({
               continue;
             }
             hrt.s.position.set(hrt.x + Math.sin(age * 6) * 0.08 + hrt.drift * age, height * 0.85 + age * 1.1, hrt.z);
-            hrt.s.scale.setScalar(0.22 * Math.min(1, age * 5));
+            hrt.s.scale.setScalar(0.3 * Math.min(1, age * 5));
             hrt.s.material.opacity = age < 0.7 ? 1 : 1 - (age - 0.7) / 0.3;
           }
           monster.update(now);
@@ -199,16 +220,38 @@ export function PetView({
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", up);
           renderer.dispose();
+          // Give the WebGL context back at once: iPhones only allow a few, and leaked ones make the next scene blank.
+          renderer.forceContextLoss?.();
           renderer.domElement.remove();
         };
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!dead) setTries((n) => n + 1);
+      });
     return () => {
       dead = true;
       stop();
     };
     // onPet is a fresh function each render; the scene keeps the first one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [element, stage, legend, hungry]);
+  }, [element, stage, legend, hungry, tries]);
+  if (flat) {
+    const kind = ["light", "dark", "chaos"][element] ?? "light";
+    return (
+      <div className="flex h-full w-full items-center justify-center" data-testid="pet-view">
+        {stage > 0 ? (
+          <img
+            src={`/art/dragons/${kind}-${Math.min(4, stage)}.webp`}
+            alt=""
+            draggable={false}
+            onClick={() => onPet?.()}
+            className={tired ? "max-h-[70%] max-w-[80%] object-contain opacity-80 grayscale-[30%]" : "max-h-[70%] max-w-[80%] animate-[balloon-bob_3s_ease-in-out_infinite] object-contain"}
+          />
+        ) : (
+          <span className="text-8xl">🥚</span>
+        )}
+      </div>
+    );
+  }
   return <div ref={box} className="h-full w-full" data-testid="pet-view" />;
 }

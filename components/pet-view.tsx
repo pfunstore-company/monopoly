@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
  * One monster on a little floating stone, turning slowly; drag to spin it round. Remount (key) to
  * show a different monster or stage.
  */
-export function PetView({ element, stage, legend = false }: { element: number; stage: number; legend?: boolean }) {
+export function PetView({ element, stage, legend = false, hungry = false, onPet }: { element: number; stage: number; legend?: boolean; hungry?: boolean; onPet?: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let dead = false;
@@ -45,6 +45,46 @@ export function PetView({ element, stage, legend = false }: { element: number; s
         monster.group.position.y = 0.07;
         turn.add(monster.group);
         scene.add(turn);
+        // 見到主人 (Sky 2026-10-21): on opening the page the dragon turns to you, bounces with its tail going and
+        // little hearts float up; tap it for more. Hungry, it hops once and waits for food instead.
+        const heartTex = (() => {
+          const c = document.createElement("canvas");
+          c.width = c.height = 64;
+          const x = c.getContext("2d")!;
+          x.fillStyle = "#FF5C8A";
+          x.beginPath();
+          x.moveTo(32, 56);
+          x.bezierCurveTo(4, 36, 4, 10, 20, 10);
+          x.bezierCurveTo(28, 10, 32, 18, 32, 20);
+          x.bezierCurveTo(32, 18, 36, 10, 44, 10);
+          x.bezierCurveTo(60, 10, 60, 36, 32, 56);
+          x.fill();
+          x.fillStyle = "rgba(255,255,255,0.7)";
+          x.beginPath();
+          x.ellipse(21, 21, 5, 3.5, -0.6, 0, Math.PI * 2);
+          x.fill();
+          const tex = new T.CanvasTexture(c);
+          tex.encoding = T.sRGBEncoding;
+          return tex;
+        })();
+        const hearts: { s: any; born: number; x: number; z: number; drift: number }[] = [];
+        const height = monster.height * (monster.model ? MODEL_CLOSE_UP : 1) * (stage === 0 ? 1.1 : 1.25);
+        let greetUntil = 0, greetFrom = 0, nextHeart = 0;
+        const greet = (now: number, long: boolean) => {
+          if (stage === 0) return;
+          greetFrom = now;
+          greetUntil = now + (long ? 2800 : 1800);
+          monster.setMood("happy");
+          nextHeart = now;
+        };
+        const addHeart = (now: number) => {
+          const sp = new T.Sprite(new T.SpriteMaterial({ map: heartTex, transparent: true, depthWrite: false }));
+          const x = (Math.random() - 0.5) * 0.9, z = 0.3 + Math.random() * 0.3;
+          sp.position.set(x, height * 0.85, z);
+          sp.scale.setScalar(0.01);
+          scene.add(sp);
+          hearts.push({ s: sp, born: now, x, z, drift: (Math.random() - 0.5) * 0.4 });
+        };
         const fit = () => {
           const w = host.clientWidth || 300, h = host.clientHeight || 300;
           renderer.setSize(w, h, false);
@@ -59,21 +99,61 @@ export function PetView({ element, stage, legend = false }: { element: number; s
         const lookY = monster.height * (monster.model ? MODEL_CLOSE_UP : 1) * 0.55;
         camera.position.set(0, lookY + 1.3, 5.2);
         camera.lookAt(0, lookY, 0);
-        let spin = 0.4, drag: number | null = null, frame = 0;
-        const down = (e: PointerEvent) => (drag = e.clientX);
+        let spin = 0.4, drag: number | null = null, frame = 0, downX = 0;
+        const down = (e: PointerEvent) => {
+          drag = e.clientX;
+          downX = e.clientX;
+        };
         const move = (e: PointerEvent) => {
           if (drag === null) return;
           spin += (e.clientX - drag) * 0.01;
           drag = e.clientX;
         };
-        const up = () => (drag = null);
+        const up = (e: PointerEvent) => {
+          // A tap (not a spin) on the dragon: it's pleased to be patted.
+          if (drag !== null && Math.abs(e.clientX - downX) < 6) {
+            greet(performance.now(), false);
+            onPet?.();
+          }
+          drag = null;
+        };
         renderer.domElement.addEventListener("pointerdown", down);
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
+        let started = false;
         const tick = (now: number) => {
-          if (drag === null) spin += 0.004;
-          turn.rotation.y = Math.sin(spin) * 0.9;
+          if (!started) {
+            started = true;
+            greet(now + 250, true);
+          }
+          const greeting = now < greetUntil;
+          if (drag === null && !greeting) spin += 0.004;
+          // While greeting it swings round to face you, with a happy little wiggle.
+          const facing = greeting ? Math.min(1, (now - greetFrom) / 350) : 0;
+          if (greeting) spin = spin * (1 - facing * 0.12);
+          turn.rotation.y = Math.sin(spin) * 0.9 * (1 - facing) + (greeting && !hungry ? Math.sin((now - greetFrom) / 120) * 0.12 : 0);
           turn.position.y = Math.sin(now / 900) * 0.06;
+          if (!greeting && greetUntil) {
+            greetUntil = 0;
+            monster.setMood("rest");
+          }
+          if (greeting && !hungry && now >= nextHeart) {
+            addHeart(now);
+            nextHeart = now + 260 + Math.random() * 200;
+          }
+          for (let i = hearts.length - 1; i >= 0; i--) {
+            const hrt = hearts[i];
+            const age = (now - hrt.born) / 1400;
+            if (age >= 1) {
+              scene.remove(hrt.s);
+              hrt.s.material.dispose();
+              hearts.splice(i, 1);
+              continue;
+            }
+            hrt.s.position.set(hrt.x + Math.sin(age * 6) * 0.08 + hrt.drift * age, height * 0.85 + age * 1.1, hrt.z);
+            hrt.s.scale.setScalar(0.22 * Math.min(1, age * 5));
+            hrt.s.material.opacity = age < 0.7 ? 1 : 1 - (age - 0.7) / 0.3;
+          }
           monster.update(now);
           renderer.render(scene, camera);
           frame = requestAnimationFrame(tick);
@@ -93,6 +173,8 @@ export function PetView({ element, stage, legend = false }: { element: number; s
       dead = true;
       stop();
     };
-  }, [element, stage, legend]);
+    // onPet is a fresh function each render; the scene keeps the first one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [element, stage, legend, hungry]);
   return <div ref={box} className="h-full w-full" data-testid="pet-view" />;
 }

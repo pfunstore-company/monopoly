@@ -2,14 +2,16 @@
 
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
-import { EightBoard, seatsFor } from "@/components/table-game";
+import { EightBoard, seatsFor, useHeroLevels } from "@/components/table-game";
+import { LevelBadge } from "@/components/hero-sheet";
+import { perkLine, type HeroId } from "@/lib/heroes";
 import { SPECIAL_CARDS, SPECIALS_IN, SSR_CARDS, isUr, type Special } from "@/lib/eight";
 import { SPECIALS } from "@/lib/shop";
 import { ISLANDS } from "@/lib/islands";
 import { loadCollection, loadNestLevel, loadPet, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
-import { CHARACTERS, PERKS, savePick, savedPick } from "@/lib/characters";
+import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import {
   LISTINGS,
   MAX_PLAYERS,
@@ -194,7 +196,7 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
       ) : (
         <RealmEditor realm={realm} onChange={update} onHost={() => setPicking("host")} />
       )}
-      {picking ? <CharacterPick noUr={picking !== "host" && picking.realm.noUr} onPick={(pick, specials) => enter(picking, pick, specials)} onClose={() => setPicking(null)} /> : null}
+      {picking ? <CharacterPick noUr={picking === "host" ? realm.noUr : picking.realm.noUr} onPick={(pick, specials) => enter(picking, pick, specials)} onClose={() => setPicking(null)} /> : null}
     </main>
   );
 }
@@ -228,6 +230,7 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
           <span className="flex flex-wrap gap-1 text-[11px] font-black">
             {houses ? <span className="rounded-full bg-[#FFE4E1] px-2 py-0.5 text-[#B91C1C]">{t("主人屋 ×{n}（踩中要交租）", { n: houses })}</span> : null}
             {stations ? <span className="rounded-full bg-[#E0F2FE] px-2 py-0.5 text-[#0369A1]">{t("車站 ×{n}", { n: stations })}</span> : null}
+            {land.fair ? <span className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-[#166534]">{t("公平模式")}</span> : null}
             {land.noUr ? (
               <span className="rounded-full bg-[#E5E7EB] px-2 py-0.5 text-[#475569]">{t("唔准帶 UR 卡")}</span>
             ) : (
@@ -364,6 +367,27 @@ function RealmEditor({
                   testid="min-players"
                 />
               </div>
+              {/* Sky 2026-10-21: the host's two rules. */}
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["noUr", "唔准帶 UR 卡"],
+                    ["fair", "公平模式（全部人當 Lv1）"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={!!realm[key]}
+                    onClick={() => onChange({ realm: { ...realm, [key]: !realm[key] } })}
+                    className={cn("cursor-pointer rounded-2xl border-[3px] px-2 py-2 text-xs font-black", realm[key] ? "border-[#FBD000] bg-[#FFF8D6]" : "border-[#E5E7EB] bg-white text-[#64748B]")}
+                    data-testid={`rule-${key}`}
+                  >
+                    {realm[key] ? "✅ " : "⬜ "}
+                    {t(label)}
+                  </button>
+                ))}
+              </div>
             </>
             <button
               type="button"
@@ -436,6 +460,7 @@ function CharacterPick({ onPick, onClose, noUr }: { onPick: (pick: number, speci
     return () => window.clearTimeout(id);
   }, []);
   const count = (id: Special) => chosen.filter((c) => c === id).length;
+  const lv = useHeroLevels();
   return (
     <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/50" onClick={onClose}>
       <div
@@ -449,13 +474,15 @@ function CharacterPick({ onPick, onClose, noUr }: { onPick: (pick: number, speci
             <button
               key={c.name}
               type="button"
+              disabled={!lv.mine(c.actor)}
               onClick={() => setPick(i)}
               aria-pressed={pick === i}
-              className={cn("flex cursor-pointer flex-col items-center rounded-2xl p-1 transition", pick === i ? "bg-[#FFF8D6] ring-2 ring-[#FBD000]" : "opacity-70")}
+              className={cn("flex cursor-pointer flex-col items-center rounded-2xl p-1 transition disabled:cursor-default disabled:grayscale", pick === i ? "bg-[#FFF8D6] ring-2 ring-[#FBD000]" : "opacity-70")}
             >
               <img src={c.avatar} alt="" className="size-12 rounded-full border-2 object-cover" style={{ borderColor: c.colour }} />
               <span className="mt-1 text-xs font-black">{t(c.name)}</span>
-              {PERKS[c.actor] ? <span className="text-center text-[9px] font-bold leading-tight text-[#3B5BA9]">{t(PERKS[c.actor])}</span> : null}
+              <LevelBadge level={lv.level(c.actor)} />
+              {perkLine(c.actor as HeroId, lv.level(c.actor)) ? <span className="text-center text-[9px] font-bold leading-tight text-[#3B5BA9]">{t(perkLine(c.actor as HeroId, lv.level(c.actor)))}</span> : null}
             </button>
           ))}
         </div>

@@ -6,6 +6,17 @@
  * 抽卡 odds are published on screen (App Store / Google Play rule for paid random items).
  */
 import type { Stock } from "@/lib/realm";
+import { clampLevel, levelCost, MAX_HERO_LEVEL } from "@/lib/heroes";
+
+/**
+ * 測試期 (Sky: nothing locked while testing): every character stays yours, 重選夥伴 needs no wait and loses nothing.
+ * Set to false before launch.
+ */
+export const TESTING = true;
+/** 夥伴 (Sky 2026-10-21): a new player picks one of these; the other three come from the 角色卡池. */
+export const STARTERS = ["vampire", "jiangshi", "mummy", "zombie"] as const;
+/** 重選夥伴: once, no sooner than this after the first pick. */
+export const REPICK_WAIT_MS = 24 * 60 * 60 * 1000;
 
 /** UR is only for 特別卡 (Sky 2026-10-18); the character pool tops out at SSR. */
 export type Rarity = "N" | "R" | "SR" | "SSR" | "UR";
@@ -93,15 +104,26 @@ export type Collection = {
   ads: { day: string; watched: number };
   /** 測試期 (Sky: nothing locked while testing): one of each UR card given once. */
   urGift?: boolean;
+  /** 測試期: three each of 封印 and 反射鏡, and a UR top-up, given once (2026-10-21). */
+  gift2?: boolean;
+  /** 角色升級: each character's level (missing = Lv1). */
+  levels: Record<string, number>;
+  /** 夥伴: the R character picked at the start, when (ms), and whether the one 重選 is spent. */
+  partner?: string;
+  partnerAt?: number;
+  repicked?: boolean;
 };
 
 export function newCollection(): Collection {
   return {
-    heroes: { vampire: 1, jiangshi: 1, mummy: 1, zombie: 1 },
+    // The four R characters while testing; after that only the 夥伴 you pick.
+    heroes: TESTING ? { vampire: 1, jiangshi: 1, mummy: 1, zombie: 1 } : {},
     shards: 0,
-    // 測試期 (Sky: nothing locked while testing): a new player gets one of each UR card too.
-    specials: Object.fromEntries(UR_IDS.map((id) => [id, 1])),
+    // 測試期 (Sky: nothing locked while testing): a new player gets one of each UR card too, and the 牽制卡.
+    specials: TESTING ? { ...Object.fromEntries(UR_IDS.map((id) => [id, 1])), seal: 3, mirror: 3 } : {},
     urGift: true,
+    gift2: true,
+    levels: {},
     converted: false,
     sinceSSR: { hero: 0, special: 0 },
     starter: false,
@@ -238,8 +260,15 @@ export function parseCollection(value: unknown): Collection {
   for (const h of HEROES) if (raw.heroes && num(raw.heroes[h.id]) > 0) heroes[h.id] = num(raw.heroes[h.id]);
   const specials: Collection["specials"] = {};
   for (const id of SPECIAL_IDS) if (raw.specials && num(raw.specials[id]) > 0) specials[id] = num(raw.specials[id]);
-  // 測試期: everyone gets one of each UR card once, to try them.
+  // 測試期: everyone gets one of each UR card once, to try them; later the 牽制卡 and a UR top-up.
   if (raw.urGift !== true) for (const id of UR_IDS) specials[id] = (specials[id] ?? 0) + 1;
+  if (TESTING && raw.gift2 !== true) {
+    for (const id of ["seal", "mirror"] as const) specials[id] = (specials[id] ?? 0) + 3;
+    for (const id of UR_IDS) specials[id] = Math.max(1, specials[id] ?? 0);
+  }
+  const levels: Record<string, number> = {};
+  for (const h of HEROES) if (raw.levels && typeof raw.levels[h.id] === "number" && clampLevel(raw.levels[h.id]) > 1) levels[h.id] = clampLevel(raw.levels[h.id]);
+  const partner = typeof raw.partner === "string" && (STARTERS as readonly string[]).includes(raw.partner) ? raw.partner : undefined;
   const str = (s: unknown) => (typeof s === "string" ? s : null);
   return {
     heroes,
@@ -253,6 +282,51 @@ export function parseCollection(value: unknown): Collection {
     deals: { day: str(raw.deals?.day) ?? "", bought: Array.isArray(raw.deals?.bought) ? raw.deals!.bought.filter((x) => typeof x === "string") : [] },
     ads: { day: str(raw.ads?.day) ?? "", watched: num(raw.ads?.watched) },
     urGift: true,
+    gift2: TESTING || raw.gift2 === true,
+    levels,
+    ...(partner ? { partner, partnerAt: typeof raw.partnerAt === "number" ? raw.partnerAt : 0, ...(raw.repicked === true ? { repicked: true } : {}) } : {}),
   };
+}
+
+// ---------- 夥伴 and 角色升級 (Sky 2026-10-21) ----------
+
+export function heroLevel(c: Collection, id: string): number {
+  return clampLevel(c.levels[id] ?? 1);
+}
+export function owns(c: Collection, id: string): boolean {
+  return TESTING || (c.heroes[id] ?? 0) > 0;
+}
+/** Up a level with 碎片 (null: not yours, at the top, or not enough 碎片). */
+export function levelUp(c: Collection, id: string): Collection | null {
+  const level = heroLevel(c, id);
+  const cost = levelCost(level);
+  if (!owns(c, id) || cost === null || level >= MAX_HERO_LEVEL || c.shards < cost) return null;
+  return { ...c, shards: c.shards - cost, levels: { ...c.levels, [id]: level + 1 } };
+}
+export function choosePartner(c: Collection, id: string, now: number): Collection {
+  if (c.partner || !(STARTERS as readonly string[]).includes(id)) return c;
+  return { ...c, partner: id, partnerAt: now, heroes: { ...c.heroes, [id]: Math.max(1, c.heroes[id] ?? 0) } };
+}
+/** When 重選夥伴 opens (ms), or null once it's spent (always open while testing). */
+export function repickAt(c: Collection): number | null {
+  if (!c.partner) return null;
+  if (TESTING) return 0;
+  return c.repicked ? null : (c.partnerAt ?? 0) + REPICK_WAIT_MS;
+}
+/** The R characters you could switch to. */
+export function repickChoices(c: Collection): string[] {
+  return STARTERS.filter((id) => id !== c.partner && (TESTING || !(c.heroes[id] > 0)));
+}
+/** 重選夥伴: the old one goes, with its levels (testing: nothing is taken away and it can be done again). */
+export function repick(c: Collection, id: string, now: number): Collection | null {
+  const at = repickAt(c);
+  if (at === null || now < at || !repickChoices(c).includes(id) || !c.partner) return null;
+  if (TESTING) return { ...c, partner: id, heroes: { ...c.heroes, [id]: Math.max(1, c.heroes[id] ?? 0) } };
+  const heroes = { ...c.heroes };
+  const levels = { ...c.levels };
+  delete heroes[c.partner];
+  delete levels[c.partner];
+  heroes[id] = 1;
+  return { ...c, heroes, levels, partner: id, repicked: true };
 }
 export const COLLECTION_KEY = "boolionaire-collection-v1";

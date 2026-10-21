@@ -140,6 +140,8 @@ export type Realm = {
   isle?: string;
   /** No UR 特別卡 allowed in (Sky 2026-10-21). */
   noUr?: boolean;
+  /** 公平模式 (Sky 2026-10-21): every character plays at Lv1. */
+  fair?: boolean;
 };
 
 export const REALM_KEY = "boolionaire-realm-v2";
@@ -218,6 +220,7 @@ export function rulesOf(realm: Realm): Partial<TableRules> {
     houses: Object.fromEntries(housesOf(realm).map((key) => [key, Math.min(RENT_CAP, HOUSE_RENT)])),
     cards: CARDS,
     toll: TOLL + count(realm, "rent"),
+    ...(realm.fair ? { fair: true } : {}),
   };
 }
 
@@ -236,7 +239,7 @@ export type Listing = { id: string; owner: string; land: LandKind; realm: Realm;
 export const LISTINGS: readonly Listing[] = [
   { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", null], ticket: 8, minPlayers: 2, deck: "standard" }, waiting: 1 },
   { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild", noUr: true }, waiting: 2 },
-  { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard" }, waiting: 1 },
+  { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard", fair: true }, waiting: 1 },
 ];
 
 // ---------- Saving ----------
@@ -251,7 +254,16 @@ export function parseRealm(value: unknown): Realm {
     return kind && BUILDING_KINDS.includes(kind) ? kind : null;
   });
   const deck: DeckId = raw.deck === "wild" || raw.deck === "calm" ? raw.deck : "standard";
-  let realm: Realm = { land, slots, ticket: 10, minPlayers: 2, deck, ...(typeof raw.isle === "string" ? { isle: raw.isle } : {}) };
+  let realm: Realm = {
+    land,
+    slots,
+    ticket: 10,
+    minPlayers: 2,
+    deck,
+    ...(typeof raw.isle === "string" ? { isle: raw.isle } : {}),
+    ...(raw.noUr === true ? { noUr: true } : {}),
+    ...(raw.fair === true ? { fair: true } : {}),
+  };
   realm = setTicket(realm, typeof raw.ticket === "number" ? raw.ticket : 10);
   return setMinPlayers(realm, typeof raw.minPlayers === "number" ? raw.minPlayers : 2);
 }

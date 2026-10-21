@@ -1,3 +1,5 @@
+import { clampLevel, firstUses, hasSecond, pumpkinStart, VAMPIRE_BONUS, type HeroId } from "./heroes";
+
 /**
  * 第二層 公開桌 on the 八字 board: two diamonds side by side that cross in the middle, like ∞.
  *
@@ -257,6 +259,9 @@ export type Seat = {
   artisan?: boolean;
   /** 角色能力 (Sky 2026-10-17): used once this game (阿科's half rent, 阿神's extra roll). */
   perkUsed?: boolean;
+  /** 角色升級 (Sky 2026-10-21): this character's level (1–5), and how often each level ability was used this game. */
+  level?: number;
+  uses?: Partial<Record<PerkId, number>>;
   /** 黃金之路: the next walk takes every empty lot it passes. */
   goldRoad?: boolean;
   /** 時光倒流: extra rolls still to come this turn. */
@@ -271,12 +276,32 @@ export type Seat = {
  * 角色能力 (Sky 2026-10-17), on every table: 阿瓜 (pumpkin) gets 20% more passing start, 阿科 (franken) pays
  * half his first rent, 阿神 (reaper) rolls again once when a die shows 6. The R characters have none.
  */
-export type Hero = "pumpkin" | "franken" | "reaper";
+export type Hero = HeroId;
 export function heroOf(seat: { avatar: string }): Hero | null {
   const key = /avatars\/(\w+)\./.exec(seat.avatar)?.[1];
-  return key === "pumpkin" || key === "franken" || key === "reaper" ? key : null;
+  return key === "vampire" || key === "jiangshi" || key === "mummy" || key === "zombie" || key === "pumpkin" || key === "franken" || key === "reaper" ? key : null;
 }
-export const PUMPKIN_START = 1.2;
+/** The level abilities that count uses (lib/heroes.ts has the numbers and words). */
+export type PerkId = "first" | "redraw" | "nudge" | "jailFree" | "guard" | "pick" | "reap";
+function hero(seat: Seat, who: Hero): boolean {
+  return heroOf(seat) === who;
+}
+function usesOf(seat: Seat, id: PerkId): number {
+  return seat.uses?.[id] ?? (id === "first" && seat.perkUsed ? 1 : 0);
+}
+/** The first ability still has a use left this game. */
+function firstLeft(seat: Seat): boolean {
+  const h = heroOf(seat);
+  return !!h && usesOf(seat, "first") < firstUses(h, seat.level ?? 1);
+}
+/** A once-a-game Lv3 ability still unused. */
+function secondLeft(seat: Seat, who: Hero, id: PerkId): boolean {
+  return hero(seat, who) && hasSecond(seat.level ?? 1) && usesOf(seat, id) < 1;
+}
+function use(state: TableState, seat: number, id: PerkId): TableState {
+  const s = state.seats[seat];
+  return withSeat(state, seat, { uses: { ...s.uses, [id]: usesOf(s, id) + 1 } });
+}
 
 /** `locked`: turns left (anyone's) during which the lot collects no rent — a 封地 card. */
 export type Deed = { owner: number; level: number; locked?: number };
@@ -383,6 +408,8 @@ export type TableEvent =
   | { kind: "again"; seat: number }
   /** 霸王收購 stopped by the target's 護盾. */
   | { kind: "guarded"; seat: number; by: number }
+  /** A level ability worked (the screen says which). */
+  | { kind: "perk"; seat: number; perk: "vampire" | "redraw" | "bailHalf" | "bailFree" | "nudge" | "taxHalf" | "upgradeHalf" | "guard" | "pick" | "noSteal" | "reap"; key?: string; amount?: number }
   /** 反射鏡: `seat`'s attack card did nothing to `by`, and `seat` misses a turn. */
   | { kind: "mirrored"; seat: number; by: number; power: Power }
   /** 封印: `seat` sealed `target`'s card · unsealed: it came back. */
@@ -451,6 +478,8 @@ export type TableRules = {
   cards: readonly Card[];
   /** 三葉草: the toll at each 地主關卡 (TOLL, more with 租金屋). */
   toll?: number;
+  /** 公平模式 (Sky 2026-10-21): every character plays at Lv1. */
+  fair?: boolean;
 };
 
 export const RENT_CAP = 6;
@@ -481,13 +510,13 @@ export type TableState = {
 };
 
 export type TableAction =
-  | { type: "roll"; dice: [number, number]; card?: number; fly?: number; power?: number }
+  | { type: "roll"; dice: [number, number]; card?: number; fly?: number; power?: number; nudge?: 1 | -1 }
   | { type: "choose"; road: boolean }
   /** Play the power card in hand at `index`; `target` is the opponent for swap (lock and wreck pick their best lot). */
   | { type: "power"; index: number; target?: number };
 
 export function newTable(
-  players: { name: string; avatar: string; colour: string; bot: boolean; specials?: Special[] }[],
+  players: { name: string; avatar: string; colour: string; bot: boolean; specials?: Special[]; level?: number }[],
   rules: Partial<TableRules> = {},
   board: BoardId = "eight",
 ): TableState {
@@ -499,14 +528,16 @@ export function newTable(
   );
   const clover = board === "clover";
   return {
-    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS, ...(rules.toll ? { toll: rules.toll } : {}) },
+    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS, ...(rules.toll ? { toll: rules.toll } : {}), ...(rules.fair ? { fair: true } : {}) },
     board,
     hostIncome: 0,
     // 三葉草 has no land to buy, so no power cards either: it's all about the materials.
     pickups: clover ? [] : [firstPickup(board, players.length)],
 
-    seats: players.slice(0, MAX_SEATS).map(({ specials, ...player }) => ({
+    seats: players.slice(0, MAX_SEATS).map(({ specials, level, ...player }) => ({
       ...player,
+      // 公平模式: everyone plays at Lv1.
+      level: rules.fair ? 1 : clampLevel(level),
       cash: STAKE,
       spot: { on: "loop", i: 0 },
       jailed: false,
@@ -514,7 +545,11 @@ export function newTable(
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
       // 領地 (Sky 2026-10-18): the 特別卡 each player brought in (up to three) instead.
-      powers: clover ? specialsIn(specials ?? []) : [...START_POWERS],
+      powers: [
+        ...(clover ? specialsIn(specials ?? []) : START_POWERS),
+        // 阿木 Lv3: sits down with a 護盾.
+        ...(heroOf(player) === "mummy" && hasSecond(rules.fair ? 1 : clampLevel(level)) ? (["shield"] as Power[]) : []),
+      ],
 
     })),
     deeds: {},
@@ -605,6 +640,16 @@ function pay(state: TableState, seat: number, amount: number, to: number | null,
   const deeds = { ...next.deeds };
   for (const key of lost) delete deeds[key];
   events.push({ kind: "bankrupt", seat, to, lost });
+  // 阿神 Lv3: someone going broke leaves him their best lot.
+  const reaper = next.seats.findIndex((s, i) => i !== seat && !s.bankrupt && secondLeft(s, "reaper", "reap"));
+  if (reaper >= 0 && lost.length) {
+    const key = [...lost].sort((x, y) => state.deeds[y].level - state.deeds[x].level || (x < y ? -1 : 1))[0];
+    // Lv4: the lot comes up a level too.
+    const up = (next.seats[reaper].level ?? 1) >= 4 ? 1 : 0;
+    deeds[key] = { owner: reaper, level: Math.min(MAX_LEVEL, state.deeds[key].level + up) };
+    events.push({ kind: "perk", seat: reaper, perk: "reap", key });
+    return use({ ...next, deeds }, reaper, "reap");
+  }
   return { ...next, deeds };
 }
 
@@ -614,7 +659,7 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const passedStart = to.on === "loop" && to.i === 0;
   // (On 三葉草 that's once a lap, at the start of the forest loop.)
   events.push({ kind: "step", seat, to, passedStart });
-  const startPay = START_PAY * (heroOf(player) === "pumpkin" ? PUMPKIN_START : 1);
+  const startPay = START_PAY * (hero(player, "pumpkin") ? pumpkinStart(player.level ?? 1) : 1);
   // 三葉草 (Sky 2026-10-18): a 轉 is one whole lap — it counts when you come round to the plaza, not each roll.
   const lapDone = passedStart && state.board === "clover" ? { turnsTaken: player.turnsTaken + 1 } : {};
   let moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? startPay : 0), ...lapDone });
@@ -705,13 +750,18 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       }
       if (deed.owner === seat) {
         if (deed.level >= MAX_LEVEL) return state;
-        if (player.cash - UPGRADE_PRICE < BUY_RESERVE) {
+        // 阿強 Lv2+: the first upgrade(s) of the game half price.
+        const half = hero(player, "zombie") && firstLeft(player);
+        const price = half ? UPGRADE_PRICE / 2 : UPGRADE_PRICE;
+        if (player.cash - price < BUY_RESERVE) {
           events.push({ kind: "saved", seat, key });
           return state;
         }
         const level = deed.level + 1;
+        if (half) events.push({ kind: "perk", seat, perk: "upgradeHalf", key });
         events.push({ kind: "upgraded", seat, key, level });
-        return { ...withSeat(state, seat, { cash: player.cash - UPGRADE_PRICE }), deeds: { ...state.deeds, [key]: { owner: seat, level } } };
+        const paid = withSeat(half ? use(state, seat, "first") : state, seat, { cash: player.cash - price });
+        return { ...paid, deeds: { ...state.deeds, [key]: { owner: seat, level } } };
       }
       if (deed.locked) {
         events.push({ kind: "lockedLot", seat, key });
@@ -723,12 +773,20 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         return withSeat(state, seat, { powers: player.powers.filter((_, i) => i !== shield) });
       }
       const full = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1) * (setOwnerOf(state, key) === deed.owner ? 2 : 1);
-      // 阿科: the first rent of the game is halved.
-      const halve = heroOf(player) === "franken" && !player.perkUsed;
+      // 阿科: the first rent(s) of the game halved (one at Lv1, two at Lv2, three at Lv4).
+      const halve = hero(player, "franken") && firstLeft(player);
       const rent = halve ? full / 2 : full;
-      const payer = halve ? withSeat(state, seat, { perkUsed: true }) : state;
+      const payer = halve ? use(state, seat, "first") : state;
       events.push({ kind: "rent", seat, to: deed.owner, amount: Math.min(rent, player.cash), key });
-      return pay(payer, seat, rent, deed.owner, events);
+      const after = pay(payer, seat, rent, deed.owner, events);
+      // 伯爵 Lv2+: the first rent(s) he collects come with half as much again, from the bank.
+      const owner = after.seats[deed.owner];
+      if (hero(owner, "vampire") && firstLeft(owner) && !after.seats[seat].bankrupt) {
+        const bonus = money(rent * VAMPIRE_BONUS);
+        events.push({ kind: "perk", seat: deed.owner, perk: "vampire", amount: bonus });
+        return withSeat(use(after, deed.owner, "first"), deed.owner, { cash: owner.cash + bonus });
+      }
+      return after;
     }
     case "chest": {
       const carded = drawPower(state, seat, CHEST_POWER_ODDS, events);
@@ -741,9 +799,14 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       const paid = withSeat(state, seat, { cash: player.cash + CROSS_PAY });
       return drawPower(paid, seat, CROSS_POWER_ODDS, events, 1) ?? paid;
     }
-    case "tax":
-      events.push({ kind: "tax", seat, amount: Math.min(TAX, player.cash) });
-      return pay(state, seat, TAX, null, events);
+    case "tax": {
+      // 阿木 Lv2+: the first tax(es) of the game halved.
+      const half = hero(player, "mummy") && firstLeft(player);
+      const tax = half ? TAX / 2 : TAX;
+      if (half) events.push({ kind: "perk", seat, perk: "taxHalf" });
+      events.push({ kind: "tax", seat, amount: Math.min(tax, player.cash) });
+      return pay(half ? use(state, seat, "first") : state, seat, tax, null, events);
+    }
     case "fly":
     case "dock": {
       if (depth > 0) return state;
@@ -760,7 +823,20 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       const carded = drawPower(state, seat, POWER_ODDS, events);
       if (carded) return carded;
       const deck = state.rules.cards;
-      const card = deck[((state.draw.card % deck.length) + deck.length) % deck.length];
+      const at = (n: number) => deck[(((state.draw.card + n) % deck.length) + deck.length) % deck.length];
+      let card = at(0);
+      // 阿瓜 Lv3: once a game, two cards and the better one is kept. 伯爵 Lv3: once a game, a card that costs is drawn again.
+      if (secondLeft(player, "pumpkin", "pick") && deck.length > 1) {
+        const other = at(1);
+        if (cardWorth(other) > cardWorth(card)) card = other;
+        events.push({ kind: "perk", seat, perk: "pick" });
+        state = use(state, seat, "pick");
+      } else if (secondLeft(player, "vampire", "redraw") && card.kind === "money" && card.amount < 0 && deck.length > 1) {
+        // A real redraw: any card but the same one.
+        card = at(1 + (((Math.floor(state.draw.fly) % (deck.length - 1)) + deck.length - 1) % (deck.length - 1)));
+        events.push({ kind: "perk", seat, perk: "redraw" });
+        state = use(state, seat, "redraw");
+      }
       events.push({ kind: "card", seat, card });
       if (card.kind === "money") {
         if (card.amount >= 0) return withSeat(state, seat, { cash: player.cash + card.amount });
@@ -839,6 +915,11 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
   }
 }
 
+/** How good a chance card is, for 阿瓜's pick. */
+function cardWorth(card: Card): number {
+  return card.kind === "money" ? card.amount : card.kind === "forward" ? 0.5 : -3;
+}
+
 function addMaterial(stock: MaterialStock | undefined, material: Material, amount: number): MaterialStock {
   const now = { ...(stock ?? NO_MATERIALS) };
   now[material] = Math.max(0, now[material] + amount);
@@ -849,9 +930,9 @@ function addMaterial(stock: MaterialStock | undefined, material: Material, amoun
 function finishTurn(state: TableState, events: TableEvent[]): TableState {
   // 阿神: once a game, a 6 means another roll before the turn ends.
   const me = state.seats[state.current];
-  if (me && heroOf(me) === "reaper" && !me.perkUsed && !me.bankrupt && !me.jailed && state.lastDice?.includes(6) && !isOver(state)) {
+  if (me && hero(me, "reaper") && firstLeft(me) && !me.bankrupt && !me.jailed && (state.board === "clover" ? state.lastDice?.[0] === 6 : state.lastDice?.includes(6)) && !isOver(state)) {
     events.push({ kind: "again", seat: state.current });
-    return { ...withSeat(state, state.current, { perkUsed: true }), phase: "roll", stepsLeft: 0 };
+    return { ...use(state, state.current, "first"), phase: "roll", stepsLeft: 0 };
   }
   // 時光倒流: another roll, still taking the empty lots walked over.
   if (me?.rewind && !me.bankrupt && !me.jailed && !isOver(state)) {
@@ -921,11 +1002,29 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
     let next: TableState = { ...state, lastDice: [a, b], draw: { card: action.card ?? 0, fly: action.fly ?? 0, power: action.power } };
     if (next.seats[seat].jailed) {
       events.push({ kind: "freed", seat });
-      next = withSeat(pay(next, seat, BAIL, null, events), seat, { jailed: false });
+      // 阿殭: Lv4 walks out free the first time; Lv2+ pays half.
+      const me = next.seats[seat];
+      const free = hero(me, "jiangshi") && (me.level ?? 1) >= 4 && usesOf(me, "jailFree") < 1;
+      const half = hero(me, "jiangshi") && firstLeft(me);
+      if (free) {
+        events.push({ kind: "perk", seat, perk: "bailFree" });
+        next = withSeat(use(next, seat, "jailFree"), seat, { jailed: false });
+      } else {
+        if (half) events.push({ kind: "perk", seat, perk: "bailHalf" });
+        next = withSeat(pay(next, seat, half ? BAIL / 2 : BAIL, null, events), seat, { jailed: false });
+      }
       if (next.seats[seat].bankrupt) return bump(finishTurn(next, events));
     }
+    // 阿殭 Lv3: once a game, one square more or less (on the die that walks last).
+    let [first, second] = [a, next.board === "clover" ? 0 : b];
+    if ((action.nudge === 1 || action.nudge === -1) && secondLeft(next.seats[seat], "jiangshi", "nudge")) {
+      events.push({ kind: "perk", seat, perk: "nudge", amount: action.nudge });
+      next = use(next, seat, "nudge");
+      if (second > 0) second = Math.max(1, second + action.nudge);
+      else first = Math.max(1, first + action.nudge);
+    }
     // 領地 island (Sky 2026-10-17): one die only.
-    return bump(walk({ ...next, stepsLeft: a, pending: next.board === "clover" ? 0 : b }, seat, events));
+    return bump(walk({ ...next, stepsLeft: first, pending: second }, seat, events));
   }
 
   if (action.type === "power") {
@@ -1105,13 +1204,19 @@ function playPowerRaw(state: TableState, seat: number, index: number, target: nu
     const zone = score.indexOf(Math.max(...score));
     const deeds = { ...state.deeds };
     const levels: Record<string, number> = {};
+    // 阿強 Lv3: once a game his buildings ride it out.
+    const guarded = state.seats.findIndex((s, i) => i !== seat && secondLeft(s, "zombie", "guard") && Object.entries(state.deeds).some(([k, d]) => d.owner === i && area(k) === zone));
     for (const [key, d] of Object.entries(state.deeds)) {
-      if (d.owner === seat || area(key) !== zone) continue;
+      if (d.owner === seat || area(key) !== zone || d.owner === guarded) continue;
       if (d.level > 1) deeds[key] = { ...d, level: d.level - 1 };
       else delete deeds[key];
       levels[key] = d.level - 1;
     }
     events.push({ kind: "played", seat, power, levels });
+    if (guarded >= 0) {
+      events.push({ kind: "perk", seat: guarded, perk: "guard" });
+      return use({ ...withSeat(state, seat, hand), deeds }, guarded, "guard");
+    }
     return { ...withSeat(state, seat, hand), deeds };
   }
   if (power === "blackhole") {
@@ -1208,6 +1313,12 @@ function playPowerRaw(state: TableState, seat: number, index: number, target: nu
   if (power === "lock" || power === "wreck") {
     const key = bestTarget(state, seat, power === "lock")!;
     const deed = state.deeds[key];
+    // 阿強 Lv3: once a game his building can't be knocked down.
+    if (power === "wreck" && secondLeft(state.seats[deed.owner], "zombie", "guard")) {
+      events.push({ kind: "played", seat, power, key, target: deed.owner, levels: { [key]: deed.level } });
+      events.push({ kind: "perk", seat: deed.owner, perk: "guard", key });
+      return use(withSeat(state, seat, hand), deed.owner, "guard");
+    }
     const deeds = { ...state.deeds };
     if (power === "lock") {
       // Two rounds: every seat still playing gets two turns before it opens again.
@@ -1230,7 +1341,10 @@ function playPowerRaw(state: TableState, seat: number, index: number, target: nu
       events.push({ kind: "monster", seat, target: other, side, stolen: 0, to: victim.spot, blocked: true });
       return withSeat(withSeat(state, seat, hand), other, { powers: victim.powers.filter((_, i) => i !== guard) });
     }
-    const stolen = Math.min(MONSTER_STEAL, victim.cash);
+    // 阿科 Lv3: the monster only knocks him back.
+    const keep = hero(victim, "franken") && hasSecond(victim.level ?? 1);
+    if (keep) events.push({ kind: "perk", seat: other, perk: "noSteal" });
+    const stolen = keep ? 0 : Math.min(MONSTER_STEAL, victim.cash);
     // Knocked back along the loop (someone in jail stays behind bars).
     let to = victim.spot;
     if (!victim.jailed) for (let s = 0; s < MONSTER_KNOCK; s += 1) to = stepBack(state.board, to);

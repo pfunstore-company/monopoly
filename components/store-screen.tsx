@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FakeAd } from "@/components/fake-ad";
+import { HeroSheet, LevelBadge } from "@/components/hero-sheet";
 import { juice } from "@/components/juice";
 import { loadCollection, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
@@ -32,7 +33,9 @@ import {
   adsLeft,
   dealsOf,
   draw,
+  heroLevel,
   newCollection,
+  owns,
   watchAd,
   type Collection,
   type PoolId,
@@ -103,6 +106,7 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
   const [odds, setOdds] = useState(false);
   const [ad, setAd] = useState<null | (() => void)>(null);
   const [note, setNote] = useState("");
+  const [sheet, setSheet] = useState<string | null>(null);
   useEffect(() => {
     const id = window.setTimeout(() => {
       // Sky (2026-10-17): the old materials turn into 特別卡 the first time the shop opens.
@@ -288,12 +292,21 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
               <p className="text-lg font-black">{t("我嘅收藏")}</p>
               <div className="mt-1 flex flex-wrap gap-2">
                 {HEROES.map((h) => (
-                  <span key={h.id} className={cn("flex flex-col items-center text-[10px] font-black", !col.heroes[h.id] && "opacity-30 grayscale")}>
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => setSheet(h.id)}
+                    className={cn("relative flex cursor-pointer flex-col items-center text-[10px] font-black", !owns(col, h.id) && "opacity-30 grayscale")}
+                    data-testid={`hero-${h.id}`}
+                  >
+                    {col.partner === h.id ? <span className="absolute -right-1 -top-1 text-sm">⭐</span> : null}
                     <PrizePic prize={{ kind: "hero", id: h.id }} className="size-10" />
                     {t(h.name)}
-                  </span>
+                    <LevelBadge level={heroLevel(col, h.id)} />
+                  </button>
                 ))}
               </div>
+              <p className="mt-1 text-[11px] font-bold text-[#475569]">{t("撳角色用碎片升級（最高 Lv5）")}</p>
               <p className="mt-2 text-xs font-black">{t("碎片 {n}", { n: col.shards })}</p>
               <div className="mt-1 flex flex-wrap gap-2 text-xs font-black" data-testid="special-cards">
                 {SPECIALS.map((c) => (
@@ -454,6 +467,7 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
           }}
         />
       ) : null}
+      {sheet ? <HeroSheet col={col} id={sheet} onChange={(c) => save({ col: c })} onClose={() => setSheet(null)} /> : null}
     </main>
   );
 }

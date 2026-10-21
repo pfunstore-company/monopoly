@@ -3,7 +3,7 @@
 import { juice } from "@/components/juice";
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { ENERGY_ICON, compactEnergy, formatEnergy, tableEnergy } from "@/lib/energy";
-import { CHARACTERS, PERKS, savePick, savedPick } from "@/lib/characters";
+import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import {
   BOARDS,
   BUY_RESERVE,
@@ -18,6 +18,7 @@ import {
   SAND_BACK,
   botMove,
   canPlay,
+  heroOf,
   isSpecial,
   isUr,
   type Power,
@@ -32,7 +33,9 @@ import {
   type TableState,
 } from "@/lib/eight";
 import { LAND_TAX, hostReport, type Realm } from "@/lib/realm";
-import { SPECIALS, addSpecial, randomSpecial, type SpecialId } from "@/lib/shop";
+import { SPECIALS, addSpecial, heroLevel, owns, randomSpecial, type SpecialId } from "@/lib/shop";
+import { perkLine, type HeroId } from "@/lib/heroes";
+import { LevelBadge } from "@/components/hero-sheet";
 import { loadCollection, saveCollection } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
 import { setTrack } from "@/lib/music";
@@ -72,7 +75,27 @@ const EMOJI: Record<string, string> = {};
 export function seatsFor(pick: number, opponents: number): Player[] {
   const mine = CHARACTERS[pick] ?? CHARACTERS[0];
   const rest = CHARACTERS.filter((_, i) => i !== pick).map((c) => ({ ...c, bot: true }));
-  return [{ name: "你", avatar: mine.avatar, colour: mine.colour, bot: false }, ...rest].slice(0, opponents + 1);
+  // 角色升級 (Sky 2026-10-21): you play at your character's level; the computer players at Lv1.
+  return [{ name: "你", avatar: mine.avatar, colour: mine.colour, bot: false, level: myLevel(mine.actor) }, ...rest].slice(0, opponents + 1);
+}
+
+/** Your level with a character (Lv1 when nothing is saved). */
+export function myLevel(actor: string): number {
+  try {
+    return heroLevel(loadCollection(), actor);
+  } catch {
+    return 1;
+  }
+}
+
+/** The pickers' levels and what's yours, read after the first paint. */
+export function useHeroLevels(): { level: (actor: string) => number; mine: (actor: string) => boolean } {
+  const [col, setCol] = useState<ReturnType<typeof loadCollection> | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => setCol(loadCollection()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  return { level: (a) => (col ? heroLevel(col, a) : 1), mine: (a) => (col ? owns(col, a) : true) };
 }
 
 /** The 3D character for a seat, from its avatar picture (vampire, jiangshi, mummy, zombie), or null. */
@@ -144,7 +167,7 @@ function Face({ seat, className }: { seat: { name: string; avatar: string; colou
   );
 }
 
-export type Player = (typeof CAST)[number];
+export type Player = (typeof CAST)[number] & { level?: number };
 export { CAST };
 
 /** Paper confetti falling over the results when you win. */
@@ -184,6 +207,7 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
     savePick(i);
   };
   const seats = seatsFor(pick, opponents);
+  const lv = useHeroLevels();
   return (
     <main
       // Sky's picture (2026-10-01): a castle island floating in space, the same world as the board.
@@ -234,10 +258,11 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
             <button
               key={c.name}
               type="button"
+              disabled={!lv.mine(c.actor)}
               onClick={() => choose(i)}
               aria-pressed={pick === i}
               className={cn(
-                "flex cursor-pointer flex-col items-center p-1.5 transition duration-200",
+                "flex cursor-pointer flex-col items-center p-1.5 transition duration-200 disabled:cursor-default disabled:grayscale",
                 pick === i ? "scale-110" : "scale-90 opacity-60",
               )}
               data-testid={`character-${i}`}
@@ -256,7 +281,8 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
                 {t(c.name)}
               </span>
               {pick === i ? <span className="text-[10px] font-black text-[#FFE066] [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t("你揀咗")}</span> : null}
-              {PERKS[c.actor] ? <span className="text-center text-[9px] font-bold leading-tight text-white/90 [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t(PERKS[c.actor])}</span> : null}
+              <LevelBadge level={lv.level(c.actor)} />
+              {perkLine(c.actor as HeroId, lv.level(c.actor)) ? <span className="text-center text-[9px] font-bold leading-tight text-white/90 [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t(perkLine(c.actor as HeroId, lv.level(c.actor)))}</span> : null}
             </button>
           ))}
         </div>
@@ -372,6 +398,7 @@ export function EightBoard({
   const [view, setView] = useState<View>("mid");
   const [picking, setPicking] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [nudge, setNudge] = useState<[number, number] | null>(null);
   const { t, lang } = useLang();
   const tRef = useRef(t);
   tRef.current = t;
@@ -459,6 +486,8 @@ export function EightBoard({
           case "step":
             await scene.stepTo(event.seat, event.to);
             play("step");
+            // Lv5: gold sparkles at the feet on every step.
+            if ((state.seats[event.seat]?.level ?? 1) >= 5) void scene.sparkle(event.seat);
             if (event.passedStart) {
               play("coin");
               say(state.board === "clover" ? "經過廣場 +{n}" : "經過起點 +{n}", { n: E(START_PAY) });
@@ -486,6 +515,29 @@ export function EightBoard({
             void scene.floatText(event.seat, "✨", "#FBD000");
             await scene.own(event.key, event.seat, 1);
             break;
+          case "perk": {
+            const name = who(event.seat);
+            const line: Record<string, string> = {
+              vampire: "{name} 收租多咗 {n}",
+              redraw: "{name} 重抽咗機會卡",
+              bailHalf: "{name} 保釋金減半",
+              bailFree: "{name} 免保釋出獄",
+              nudge: "{name} 用跳屍術：{n} 格",
+              taxHalf: "{name} 交稅減半",
+              upgradeHalf: "{name} 升級半價",
+              guard: "{name} 啲樓企得穩，冇事！",
+              pick: "{name} 兩張機會卡揀咗好嗰張",
+              noSteal: "{name} 冇俾怪獸搶到錢",
+              reap: "{name} 收咗一塊地",
+            };
+            const n = event.perk === "vampire" ? `+${E(event.amount ?? 0)}` : event.perk === "nudge" ? ((event.amount ?? 0) > 0 ? "+1" : "−1") : "";
+            say(line[event.perk], { name, n });
+            void scene.sparkle(event.seat);
+            if (event.perk === "vampire") void scene.floatText(event.seat, n, "#16A34A");
+            if (event.perk === "reap" && event.key) await scene.own(event.key, event.seat, state.deeds[event.key]?.level ?? 1);
+            await scene.wait(500);
+            break;
+          }
           case "guarded":
             play("smash");
             say("{name} 用護盾擋住咗霸王收購！", { name: who(event.by) });
@@ -928,7 +980,10 @@ export function EightBoard({
       setCountdown(null);
       const now = stateRef.current;
       if (now.phase === "fork") void run({ type: "choose", road: false });
-      else void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) });
+      else {
+        setNudge(null);
+        void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) });
+      }
     }, 1000);
     return () => window.clearInterval(id);
   }, [waiting, table.tick, run]);
@@ -967,6 +1022,10 @@ export function EightBoard({
   }, [table.seats]);
 
   const me = table.seats[0];
+  const go = (dice: [number, number], nudge?: 1 | -1) => {
+    setNudge(null);
+    void run({ type: "roll", dice, nudge, card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) });
+  };
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
   const turnsEach = table.rules.turnsEach;
   const round = Math.min(turnsEach, Math.max(...table.seats.map((seat) => seat.turnsTaken)) + 1);
@@ -1041,7 +1100,7 @@ export function EightBoard({
                   👑
                 </span>
               ) : null}
-              <Face seat={seat} className="size-7 border-2 text-base" />
+              <Face seat={seat} className={cn("size-7 border-2 text-base", (seat.level ?? 1) >= 5 && "!border-[#FBD000] shadow-[0_0_10px_3px_rgba(251,208,0,0.75)]")} />
               <span className="max-w-full truncate text-[10px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-xs font-black tabular-nums animate-[bump_0.35s_ease-out] [&_img]:size-3.5">
                 <Energy />
@@ -1255,6 +1314,20 @@ export function EightBoard({
         </div>
       ) : null}
 
+      {nudge ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#1E3A8A]/60 px-5" data-testid="nudge-pick">
+          <div className="w-full max-w-xs rounded-3xl border-4 border-[#FBD000] bg-white p-4 text-center">
+            <p className="font-black">{t("跳屍術（每局一次）")}</p>
+            <p className="mt-1 text-sm font-bold text-[#3B5BA9]">{t("擲到 {a} 同 {b}，要唔要多行或者少行 1 格？", { a: nudge[0], b: nudge[1] })}</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <button type="button" className="cursor-pointer rounded-2xl bg-[#E0F2FE] py-2 font-black" onClick={() => go(nudge, -1)} data-testid="nudge-minus">−1</button>
+              <button type="button" className="cursor-pointer rounded-2xl bg-[#E5E7EB] py-2 text-sm font-black" onClick={() => go(nudge)} data-testid="nudge-none">{t("照行")}</button>
+              <button type="button" className="cursor-pointer rounded-2xl bg-[#DCFCE7] py-2 font-black" onClick={() => go(nudge, 1)} data-testid="nudge-plus">+1</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Controls. */}
       <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 mx-auto flex max-w-xl items-end justify-between px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
         <button
@@ -1273,7 +1346,13 @@ export function EightBoard({
           <button
             type="button"
             disabled={!mine || table.phase !== "roll"}
-            onClick={() => void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) })}
+            onClick={() => {
+              // 阿殭 Lv3 (Sky 2026-10-21): see the dice first, then one square more or less, once a game.
+              const dice: [number, number] = [rollFace(), rollFace()];
+              const meNow = table.seats[0];
+              if (heroOf(meNow) === "jiangshi" && (meNow.level ?? 1) >= 3 && !(meNow.uses?.nudge ?? 0)) setNudge(dice);
+              else void run({ type: "roll", dice, card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) });
+            }}
             className="pointer-events-auto relative size-24 cursor-pointer rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
             aria-label={countdown !== null ? t("{n} 秒後自動擲骰", { n: countdown }) : t("擲骰")}
             data-testid="table-roll"

@@ -135,13 +135,13 @@ export function DailyGame() {
   const [tableOpen, setTableOpen] = useState(false);
   const [realmOpen, setRealmOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
-  // 睇廣告雙倍 (Sky 2026-10-08): after a chest, wheel or 龍巢, offer the reward again for an ad (14 ads a day in all).
+  // 睇廣告雙倍 (Sky 2026-10-08): after a chest, wheel or 龍巢, offer the reward again for an ad (Sky 2026-10-22: 7 a day, counted apart from the shop's).
   const [adsToday, setAdsToday] = useState(ADS_PER_DAY);
   const [adFor, setAdFor] = useState<number | null>(null);
   const [offerSkip, setOfferSkip] = useState(-1);
   useEffect(() => {
     if (storeOpen) return;
-    const id = window.setTimeout(() => setAdsToday(adsLeft(loadCollection(), dayKeyOf(Date.now()))), 0);
+    const id = window.setTimeout(() => setAdsToday(adsLeft(loadCollection(), dayKeyOf(Date.now()), "double")), 0);
     return () => window.clearTimeout(id);
   }, [storeOpen, state.rollCount]);
   const [storyOpen, setStoryOpen] = useState(false);
@@ -540,10 +540,10 @@ export function DailyGame() {
           onCancel={() => setAdFor(null)}
           onDone={() => {
             const day = dayKeyOf(Date.now());
-            const counted = watchAd(loadCollection(), day);
+            const counted = watchAd(loadCollection(), day, "double");
             if (counted && adFor === state.rollCount) {
               saveCollection(counted);
-              setAdsToday(adsLeft(counted, day));
+              setAdsToday(adsLeft(counted, day, "double"));
               dispatch({ type: "ad-double" });
               play("chest");
               juice("medium", undefined, window.innerHeight * 0.45);

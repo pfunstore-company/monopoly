@@ -1,7 +1,7 @@
 /**
  * 商店 (Sky 2026-10-08): 抽卡 (3D characters and 領地 houses), 能量 packs (real money later; test buttons now),
  * materials and a daily 精選, all paid in the 領地 wallet's 能量 (table units, shown ×10,000). Rewarded ads: at most
- * ADS_PER_DAY a day, shared by the shop's free claims and the single-player 雙倍 offers.
+ * ADS_PER_DAY a day for the shop's free claims, and ADS_PER_DAY more for the single-player 雙倍 offers.
  *
  * 抽卡 odds are published on screen (App Store / Google Play rule for paid random items).
  */
@@ -29,9 +29,10 @@ export const PITY = 50;
 export const PULL_PRICE = 10;
 export const TEN_PRICE = 90;
 
-export const ADS_PER_DAY = 14;
+/** Sky 2026-10-22: 7 ads a day in the shop and, counted apart, 7 for the board's 雙倍 offers. */
+export const ADS_PER_DAY = 7;
 /** What one free ad in the shop gives. */
-export const AD_ENERGY = 2; // 20,000 能量 (Sky 2026-10-22; was 200,000)
+export const AD_ENERGY = 3; // 30,000 能量 (Sky 2026-10-22; was 200,000)
 
 /**
  * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each
@@ -100,8 +101,9 @@ export type Collection = {
   monthClaimed: string | null;
   /** 精選 bought today (day key → item ids). */
   deals: { day: string; bought: string[] };
-  /** Rewarded ads watched today. */
+  /** Rewarded ads watched today: in the shop, and for the board's 雙倍 offers. */
   ads: { day: string; watched: number };
+  doubleAds?: { day: string; watched: number };
   /** 測試期 (Sky: nothing locked while testing): one of each UR card given once. */
   urGift?: boolean;
   /** 測試期: three each of 封印 and 反射鏡, and a UR top-up, given once (2026-10-21). */
@@ -134,12 +136,16 @@ export function newCollection(): Collection {
   };
 }
 
-export function adsLeft(c: Collection, day: string): number {
-  return ADS_PER_DAY - (c.ads.day === day ? c.ads.watched : 0);
+export type AdKind = "shop" | "double";
+export function adsLeft(c: Collection, day: string, kind: AdKind = "shop"): number {
+  const a = kind === "shop" ? c.ads : c.doubleAds;
+  return ADS_PER_DAY - (a && a.day === day ? a.watched : 0);
 }
-export function watchAd(c: Collection, day: string): Collection | null {
-  if (adsLeft(c, day) <= 0) return null;
-  return { ...c, ads: { day, watched: (c.ads.day === day ? c.ads.watched : 0) + 1 } };
+export function watchAd(c: Collection, day: string, kind: AdKind = "shop"): Collection | null {
+  if (adsLeft(c, day, kind) <= 0) return null;
+  const a = kind === "shop" ? c.ads : c.doubleAds;
+  const next = { day, watched: (a && a.day === day ? a.watched : 0) + 1 };
+  return kind === "shop" ? { ...c, ads: next } : { ...c, doubleAds: next };
 }
 
 /** Pick a rarity from a random number in [0, 1), with the pity counter. */
@@ -281,6 +287,7 @@ export function parseCollection(value: unknown): Collection {
     monthClaimed: str(raw.monthClaimed),
     deals: { day: str(raw.deals?.day) ?? "", bought: Array.isArray(raw.deals?.bought) ? raw.deals!.bought.filter((x) => typeof x === "string") : [] },
     ads: { day: str(raw.ads?.day) ?? "", watched: num(raw.ads?.watched) },
+    doubleAds: { day: str(raw.doubleAds?.day) ?? "", watched: num(raw.doubleAds?.watched) },
     urGift: true,
     gift2: TESTING || raw.gift2 === true,
     levels,

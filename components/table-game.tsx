@@ -5,6 +5,7 @@ import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from
 import { ENERGY_ICON, compactEnergy, formatEnergy, tableEnergy } from "@/lib/energy";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { afterGameAd } from "@/lib/ads";
+import { track } from "@/lib/analytics";
 import {
   BOARDS,
   BUY_RESERVE,
@@ -894,6 +895,7 @@ export function EightBoard({
       await playEvents(scene, next.events, next);
       if (sceneRef.current !== scene) return;
       if (next.phase === "over") {
+        track("game_end", { players: next.seats.length, place: standings(next).indexOf(0) + 1 });
         scene.hideDice();
         scene.focus(null);
         // The winner gets a show before the results come up.

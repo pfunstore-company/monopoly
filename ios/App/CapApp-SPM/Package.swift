@@ -12,7 +12,9 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.3"),
-        .package(name: "CapacitorCommunityAdmob", path: "../../plugins/admob")
+        .package(name: "CapacitorCommunityAdmob", path: "../../plugins/admob"),
+        .package(name: "CapacitorFirebaseAnalytics", path: "../../plugins/firebase-analytics"),
+        .package(name: "CapacitorFirebaseCrashlytics", path: "../../plugins/firebase-crashlytics")
     ],
     targets: [
         .target(
@@ -20,7 +22,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
-                .product(name: "CapacitorCommunityAdmob", package: "CapacitorCommunityAdmob")
+                .product(name: "CapacitorCommunityAdmob", package: "CapacitorCommunityAdmob"),
+                .product(name: "CapacitorFirebaseAnalytics", package: "CapacitorFirebaseAnalytics"),
+                .product(name: "CapacitorFirebaseCrashlytics", package: "CapacitorFirebaseCrashlytics")
             ]
         )
     ]

@@ -11,6 +11,8 @@
 		"backgroundColor": "#1E1446"
 	},
 	"packageClassList": [
-		"AdMobPlugin"
+		"AdMobPlugin",
+		"FirebaseAnalyticsPlugin",
+		"FirebaseCrashlyticsPlugin"
 	]
 }

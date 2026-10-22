@@ -5,6 +5,7 @@
  * While testing, Google's own sample ad unit is used: tapping your own live ads can get an AdMob account banned.
  */
 import { TESTING } from "@/lib/shop";
+import { track } from "@/lib/analytics";
 
 // AdMob account pub-8789561257233100, app Boolionaire — one app per platform, each with its own three units.
 // Google's sample units (per platform) are used while testing.
@@ -124,7 +125,7 @@ export async function afterGameAd(): Promise<void> {
     return;
   }
   lastInterstitial = Date.now();
-  await fullScreen(ad, ["interstitialAdDismissed", "interstitialAdFailedToShow"], () => ad.showInterstitial());
+  if (await fullScreen(ad, ["interstitialAdDismissed", "interstitialAdFailedToShow"], () => ad.showInterstitial())) track("ad_interstitial");
 }
 
 let appOpenStarted = false;
@@ -146,7 +147,7 @@ export function startAppOpenAds(): void {
   };
   const show = async () => {
     if (showing || !(await load()) || showing) return;
-    await fullScreen(ad, ["appOpenAdClosed", "appOpenAdFailedToShow"], () => ad.showAppOpen({ adId }));
+    if (await fullScreen(ad, ["appOpenAdClosed", "appOpenAdFailedToShow"], () => ad.showAppOpen({ adId }))) track("ad_app_open");
     void load(); // ready for next time
   };
   // On start: only if it is ready within a few seconds, so nobody waits on a slow network.
@@ -174,6 +175,7 @@ export async function showRewarded(): Promise<"rewarded" | "closed" | "failed"> 
       done = true;
       showing = false;
       subs.forEach((s) => s.remove());
+      if (r === "rewarded") track("ad_reward");
       resolve(r);
     };
     const timer = window.setTimeout(() => finish(rewarded ? "rewarded" : "failed"), 180_000);

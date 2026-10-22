@@ -161,14 +161,14 @@ export function PetScreen({
             ) : null}
             {pet.stage > 0 ? (
               <span
-                className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border-2 border-white/70 px-3 py-0.5 text-sm font-black text-white shadow"
+                className="absolute left-1/2 -top-[34px] z-10 -translate-x-1/2 rounded-full border-2 border-white/70 px-3 py-0.5 text-sm font-black text-white shadow"
                 style={{ background: ELEMENTS[pet.element].colour }}
                 data-testid="pet-element"
               >
                 {t("{e}屬性", { e: t(ELEMENTS[pet.element].name) })}
               </span>
             ) : (
-              <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/40 px-3 py-0.5 text-sm font-black text-white" data-testid="pet-element">
+              <span className="absolute left-1/2 -top-[34px] z-10 -translate-x-1/2 rounded-full bg-black/40 px-3 py-0.5 text-sm font-black text-white" data-testid="pet-element">
                 {t("屬性：？孵出嚟先知")}
               </span>
             )}

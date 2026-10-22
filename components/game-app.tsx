@@ -10,6 +10,7 @@ import { isGuest, session, startAutoSync } from "@/lib/account";
 import { loadCollection, saveCollection } from "@/components/wallet-store";
 import { choosePartner } from "@/lib/shop";
 import { initMusic } from "@/lib/music";
+import { startAppOpenAds } from "@/lib/ads";
 import { savePick } from "@/lib/characters";
 import { useEffect, useState } from "react";
 
@@ -29,6 +30,7 @@ export function GameApp() {
     return () => window.clearTimeout(id);
   }, []);
   useEffect(() => initMusic(), []);
+  useEffect(() => startAppOpenAds(), []);
   // Portrait only (Sky 2026-10-02): where the browser allows it (an installed app on Android), lock it upright.
   useEffect(() => {
     try {

@@ -1,8 +1,9 @@
 // iPhone 測試版 (Sky 2026-10-22): after each web deploy on Sky's Mac, if ios/release.json has a new build number,
 // archive the iPhone app with Xcode and upload it to Apple's test service, in the background so the web deploy
-// isn't held up. The App Store Connect key (AuthKey_<id>.p8, downloaded by Sky) is used where it lies and never
-// read or printed here. Progress goes to ~/monopoly-inbox/ios/status.txt and build.log.
+// isn't held up. The App Store Connect key (AuthKey_<id>.p8, downloaded by Sky) is used where it lies (only to sign
+// Apple's login), never copied or printed. Progress goes to ~/monopoly-inbox/ios/status.txt and build.log.
 import { spawn } from "node:child_process";
+import { createPrivateKey, sign } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +39,30 @@ try {
     process.exit(0);
   }
   const keyId = /AuthKey_([A-Z0-9]+)\.p8$/.exec(key)[1];
+  // The app's bundle ID has to be registered before Sky can make the app page; Xcode only used its wildcard
+  // profile, so register it through Apple's API with the same key.
+  try {
+    const b64 = (x) => Buffer.from(typeof x === "string" ? x : JSON.stringify(x)).toString("base64url");
+    const now = Math.floor(Date.now() / 1000);
+    const head = `${b64({ alg: "ES256", kid: keyId, typ: "JWT" })}.${b64({ iss: rel.issuerId, iat: now, exp: now + 900, aud: "appstoreconnect-v1" })}`;
+    const sig = sign("sha256", Buffer.from(head), { key: createPrivateKey(readFileSync(key)), dsaEncoding: "ieee-p1363" }).toString("base64url");
+    const api = (path, body) =>
+      fetch(`https://api.appstoreconnect.apple.com${path}`, {
+        method: body ? "POST" : "GET",
+        headers: { Authorization: `Bearer ${head}.${sig}`, "Content-Type": "application/json" },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      }).then(async (r) => ({ ok: r.ok, status: r.status, json: await r.json().catch(() => ({})) }));
+    const bundle = JSON.parse(readFileSync(join("ios", "App", "App", "capacitor.config.json"), "utf8")).appId;
+    const found = await api(`/v1/bundleIds?filter[identifier]=${encodeURIComponent(bundle)}`);
+    let note = `bundle ${bundle}: lookup ${found.status}`;
+    if (found.ok && !(found.json.data ?? []).some((d) => d.attributes?.identifier === bundle)) {
+      const made = await api("/v1/bundleIds", { data: { type: "bundleIds", attributes: { identifier: bundle, name: "Boolionaire", platform: "IOS" } } });
+      note += `, registered ${made.status}${made.ok ? "" : ` ${JSON.stringify(made.json.errors?.[0]?.detail ?? "")}`}`;
+    } else if (found.ok) note += ", already registered";
+    writeFileSync(join(DIR, "bundle.txt"), `${new Date().toISOString()} ${note}\n`);
+  } catch (e) {
+    writeFileSync(join(DIR, "bundle.txt"), `${new Date().toISOString()} bundle step failed: ${e instanceof Error ? e.message : e}\n`);
+  }
   // Work on a copy, so the next web update can't change files under Xcode's feet.
   const work = join(DIR, "work");
   rmSync(work, { recursive: true, force: true });

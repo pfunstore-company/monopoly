@@ -7,11 +7,12 @@
 import { TESTING } from "@/lib/shop";
 
 const SAMPLE_REWARDED = "ca-app-pub-3940256099942544/1712485313";
-const REWARDED = "ca-app-pub-8275164530713085/1844135448";
+// Real units: none yet — they go in once the right AdMob account (pub-8789561257233100) has the app. Until then, samples.
+const REWARDED = SAMPLE_REWARDED;
 const SAMPLE_INTERSTITIAL = "ca-app-pub-3940256099942544/4411468910";
-const INTERSTITIAL = "ca-app-pub-8275164530713085/4996912390";
+const INTERSTITIAL = SAMPLE_INTERSTITIAL;
 const SAMPLE_APP_OPEN = "ca-app-pub-3940256099942544/5575463023";
-const APP_OPEN = "ca-app-pub-8275164530713085/9205504738";
+const APP_OPEN = SAMPLE_APP_OPEN;
 
 /** No 插頁式 more often than this, and never after the very first game. */
 const INTERSTITIAL_GAP_MS = 3 * 60_000;

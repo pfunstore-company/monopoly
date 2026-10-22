@@ -1,18 +1,47 @@
 /**
- * 廣告 (Sky 2026-10-22): in the iPhone app, real AdMob ads — 獎勵式 (unit "Rewarded - Energy"), 插頁式 after a game
+ * 廣告 (Sky 2026-10-22): in the iPhone / Android app, real AdMob ads — 獎勵式 (unit "Rewarded - Energy"), 插頁式 after a game
  * (unit "Interstitial - After game") and 開啟應用程式 on start / coming back (unit "App Open");
  * in a browser there is no AdMob, and the test card (components/fake-ad.tsx) stands in.
  * While testing, Google's own sample ad unit is used: tapping your own live ads can get an AdMob account banned.
  */
 import { TESTING } from "@/lib/shop";
 
-const SAMPLE_REWARDED = "ca-app-pub-3940256099942544/1712485313";
-// Real units: AdMob account pub-8789561257233100, app Boolionaire (iOS).
-const REWARDED = "ca-app-pub-8789561257233100/7146317602";
-const SAMPLE_INTERSTITIAL = "ca-app-pub-3940256099942544/4411468910";
-const INTERSTITIAL = "ca-app-pub-8789561257233100/8156146941";
-const SAMPLE_APP_OPEN = "ca-app-pub-3940256099942544/5575463023";
-const APP_OPEN = "ca-app-pub-8789561257233100/5585823924";
+// AdMob account pub-8789561257233100, app Boolionaire — one app per platform, each with its own three units.
+// Google's sample units (per platform) are used while testing.
+type Units = { rewarded: string; interstitial: string; appOpen: string };
+const UNITS: Record<"ios" | "android", { real: Units; sample: Units }> = {
+  ios: {
+    real: {
+      rewarded: "ca-app-pub-8789561257233100/7146317602",
+      interstitial: "ca-app-pub-8789561257233100/8156146941",
+      appOpen: "ca-app-pub-8789561257233100/5585823924",
+    },
+    sample: {
+      rewarded: "ca-app-pub-3940256099942544/1712485313",
+      interstitial: "ca-app-pub-3940256099942544/4411468910",
+      appOpen: "ca-app-pub-3940256099942544/5575463023",
+    },
+  },
+  // Android app id ca-app-pub-8789561257233100~6133240958
+  android: {
+    real: {
+      rewarded: "ca-app-pub-8789561257233100/9880914274",
+      interstitial: "ca-app-pub-8789561257233100/8156769068",
+      appOpen: "ca-app-pub-8789561257233100/1427087068",
+    },
+    sample: {
+      rewarded: "ca-app-pub-3940256099942544/5224354917",
+      interstitial: "ca-app-pub-3940256099942544/1033173712",
+      appOpen: "ca-app-pub-3940256099942544/9257395921",
+    },
+  },
+};
+
+function unit(kind: keyof Units): string {
+  const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
+  const set = UNITS[cap?.getPlatform?.() === "android" ? "android" : "ios"];
+  return (TESTING ? set.sample : set.real)[kind];
+}
 
 /** No 插頁式 more often than this, and never after the very first game. */
 const INTERSTITIAL_GAP_MS = 3 * 60_000;
@@ -90,7 +119,7 @@ export async function afterGameAd(): Promise<void> {
   if (!ad || showing || gamesDone < 2 || Date.now() - lastInterstitial < INTERSTITIAL_GAP_MS) return;
   if (!(await start(ad))) return;
   try {
-    await ad.prepareInterstitial({ adId: TESTING ? SAMPLE_INTERSTITIAL : INTERSTITIAL, isTesting: TESTING });
+    await ad.prepareInterstitial({ adId: unit("interstitial"), isTesting: TESTING });
   } catch {
     return;
   }
@@ -105,7 +134,7 @@ export function startAppOpenAds(): void {
   const ad = nativeAds();
   if (!ad || appOpenStarted) return;
   appOpenStarted = true;
-  const adId = TESTING ? SAMPLE_APP_OPEN : APP_OPEN;
+  const adId = unit("appOpen");
   const load = async () => {
     if (!(await start(ad))) return false;
     try {
@@ -159,7 +188,7 @@ export async function showRewarded(): Promise<"rewarded" | "closed" | "failed"> 
           }),
         );
         subs.push(await ad.addListener("onRewardedVideoAdFailedToShow", () => finish("failed")));
-        await ad.prepareRewardVideoAd({ adId: TESTING ? SAMPLE_REWARDED : REWARDED, isTesting: TESTING });
+        await ad.prepareRewardVideoAd({ adId: unit("rewarded"), isTesting: TESTING });
         const item = await ad.showRewardVideoAd();
         if (item) rewarded = true;
       } catch {

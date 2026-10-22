@@ -5,6 +5,8 @@ import { DailyGame } from "@/components/daily-game";
 import { StoryVideo, storySeen } from "@/components/story-video";
 import { TitleScreen } from "@/components/title-screen";
 import { PartnerPick } from "@/components/hero-sheet";
+import { AccountGate } from "@/components/account-screen";
+import { isGuest, session, startAutoSync } from "@/lib/account";
 import { loadCollection, saveCollection } from "@/components/wallet-store";
 import { choosePartner } from "@/lib/shop";
 import { initMusic } from "@/lib/music";
@@ -16,8 +18,14 @@ export function GameApp() {
   const [story, setStory] = useState(false);
   // 夥伴 (Sky 2026-10-21): the first time in, after the story, pick an R character to keep.
   const [partner, setPartner] = useState(true);
+  // 帳號 (Sky 2026-10-22): on the way in, sign in / make an account, or play as a guest.
+  const [account, setAccount] = useState(true);
   useEffect(() => {
-    const id = window.setTimeout(() => setPartner(!!loadCollection().partner), 0);
+    const id = window.setTimeout(() => {
+      setPartner(!!loadCollection().partner);
+      setAccount(!!session() || isGuest());
+      if (session()) startAutoSync();
+    }, 0);
     return () => window.clearTimeout(id);
   }, []);
   useEffect(() => initMusic(), []);
@@ -44,7 +52,18 @@ export function GameApp() {
         />
       )}
       {story ? <StoryVideo onDone={() => setStory(false)} /> : null}
-      {started && !story && !partner ? (
+      {started && !story && !account ? (
+        <AccountGate
+          onDone={(reload) => {
+            if (reload) return window.location.reload();
+            startAutoSync();
+            setAccount(true);
+            setPartner(!!loadCollection().partner);
+          }}
+          onGuest={() => setAccount(true)}
+        />
+      ) : null}
+      {started && !story && account && !partner ? (
         <PartnerPick
           onPick={(id) => {
             saveCollection(choosePartner(loadCollection(), id, Date.now()));

@@ -1,5 +1,5 @@
 // 大富翁 service worker: keeps the app shell and art so the board opens without a network.
-const CACHE = "dafuweng-v317";
+const CACHE = "dafuweng-v318";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -52,6 +52,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Accounts and cloud saves always go to the server, never the cache.
+  if (url.pathname.startsWith("/api/")) return;
 
   // Pages: try the network first so updates land, fall back to the cached shell offline.
   if (request.mode === "navigate") {

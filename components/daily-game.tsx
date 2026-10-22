@@ -22,6 +22,8 @@ import { type Burst } from "@/components/board-ring";
 import { DailyBoard, type DailyFloat } from "@/components/daily-board";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { LangPicker } from "@/components/lang-picker";
+import { AccountGate, AccountPanel } from "@/components/account-screen";
+import { startAutoSync } from "@/lib/account";
 import { TipHand } from "@/components/tip-hand";
 import { PrizeWheel, WHEEL_SPIN_MS } from "@/components/prize-wheel";
 import { TILES, TILE_INFO } from "@/lib/board";
@@ -123,6 +125,7 @@ export function DailyGame() {
     return () => window.clearTimeout(id);
   }, []);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
@@ -732,6 +735,17 @@ export function DailyGame() {
       {intro ? <AttackIntro rivalFace={state.rivalFace} /> : null}
       {stealIntro ? <StealIntro /> : null}
 
+      {accountOpen ? (
+        <AccountGate
+          onDone={(reload) => {
+            if (reload) return window.location.reload();
+            startAutoSync();
+            setAccountOpen(false);
+          }}
+          onGuest={() => setAccountOpen(false)}
+        />
+      ) : null}
+
       {/* Settings sheet. */}
       {menuOpen ? (
         <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/60" onClick={() => setMenuOpen(false)}>
@@ -783,6 +797,12 @@ export function DailyGame() {
                 <span className="text-sm">{t("睇故事")}</span>
               </button>
             </div>
+            <AccountPanel
+              onSignIn={() => {
+                setMenuOpen(false);
+                setAccountOpen(true);
+              }}
+            />
             <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#F4F6FA] px-3 py-2">
               <span className="text-sm font-black text-[#1E3A8A]">🌐 {t("語言")}</span>
               <LangPicker />

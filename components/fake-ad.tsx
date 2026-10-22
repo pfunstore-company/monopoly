@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { useLang } from "@/lib/i18n";
+import { nativeAds, showRewarded } from "@/lib/ads";
 
 /** How long the test ad runs before the reward can be claimed (a real rewarded ad is usually 15–30 s). */
 export const FAKE_AD_SECONDS = 5;
@@ -14,11 +15,36 @@ export const FAKE_AD_SECONDS = 5;
 export function FakeAd({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const { t } = useLang();
   const [left, setLeft] = useState(FAKE_AD_SECONDS);
+  // In the iPhone app: a real AdMob rewarded ad (Sky 2026-10-22). If none can play, the test card below takes over.
+  const [native, setNative] = useState<"idle" | "playing" | "failed">(() => (nativeAds() ? "playing" : "idle"));
   useEffect(() => {
+    if (native !== "playing") return;
+    let alive = true;
+    void showRewarded().then((r) => {
+      if (!alive) return;
+      if (r === "rewarded") onDone();
+      else if (r === "closed") onCancel();
+      else setNative("failed");
+    });
+    return () => {
+      alive = false;
+    };
+    // Plays once when the card opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (native === "playing") return;
     if (left <= 0) return;
     const id = window.setTimeout(() => setLeft((n) => n - 1), 1000);
     return () => window.clearTimeout(id);
-  }, [left]);
+  }, [left, native]);
+  if (native === "playing") {
+    return (
+      <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-black/80 text-white" data-testid="ad-loading">
+        <p className="animate-pulse text-lg font-black">{t("廣告載入中…")}</p>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center bg-black/90 px-6 text-center text-white" data-testid="fake-ad">
       <p className="rounded-full bg-white/15 px-3 py-0.5 text-xs font-black">{t("測試廣告")}</p>

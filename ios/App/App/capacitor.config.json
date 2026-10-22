@@ -10,5 +10,7 @@
 		"contentInset": "never",
 		"backgroundColor": "#1E1446"
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"AdMobPlugin"
+	]
 }

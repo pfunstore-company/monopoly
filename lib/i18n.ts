@@ -342,6 +342,7 @@ const DICT: Record<string, { hant?: string; hans: string; en: string }> = {
   "無法連線，請檢查網路後再試": { hans: "无法连接，请检查网络后再试", en: "Can't connect. Check your connection and try again" },
   "伺服器發生問題，請稍後再試": { hans: "服务器出现问题，请稍后再试", en: "Something went wrong on the server. Please try again later" },
   "登入已過期，請重新登入": { hans: "登录已过期，请重新登录", en: "Your sign-in has expired. Please sign in again" },
+  "廣告載入中…": { hans: "广告加载中…", en: "Loading ad…" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hant: "骰子", hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

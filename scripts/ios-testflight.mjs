@@ -4,7 +4,7 @@
 // Apple's login), never copied or printed. Progress goes to ~/monopoly-inbox/ios/status.txt and build.log.
 import { spawn } from "node:child_process";
 import { createPrivateKey, sign } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -19,7 +19,10 @@ try {
   const lastFile = join(DIR, "last-build.txt");
   if (existsSync(lastFile) && readFileSync(lastFile, "utf8").trim() === tag) process.exit(0);
   const keyDirs = [DIR, join(HOME, "Downloads")];
-  const key = keyDirs.flatMap((d) => (existsSync(d) ? readdirSync(d).filter((f) => /^AuthKey_[A-Z0-9]+\.p8$/.test(f)).map((f) => join(d, f)) : []))[0];
+  // The newest key wins (an older one may have too few rights).
+  const key = keyDirs
+    .flatMap((d) => (existsSync(d) ? readdirSync(d).filter((f) => /^AuthKey_[A-Z0-9]+\.p8$/.test(f)).map((f) => join(d, f)) : []))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
   const platform = `xcodebuild -showsdks | grep -q iphoneos || xcodebuild -downloadPlatform iOS`;
   if (!key || !rel.teamId || !rel.issuerId) {
     const why = `${!key ? "no AuthKey_*.p8 in Downloads; " : ""}${!rel.teamId ? "no teamId; " : ""}${!rel.issuerId ? "no issuerId" : ""}`;

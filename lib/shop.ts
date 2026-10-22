@@ -31,7 +31,7 @@ export const TEN_PRICE = 90;
 
 export const ADS_PER_DAY = 14;
 /** What one free ad in the shop gives. */
-export const AD_ENERGY = 20;
+export const AD_ENERGY = 2; // 20,000 能量 (Sky 2026-10-22; was 200,000)
 
 /**
  * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each

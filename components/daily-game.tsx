@@ -24,7 +24,6 @@ import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { PrizeWheel, WHEEL_SPIN_MS } from "@/components/prize-wheel";
-import { Button } from "@/components/ui/button";
 import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
 import { ELEMENTS, HATCH_ROLLS, fedToday, rollElement } from "@/lib/pet";
@@ -34,8 +33,6 @@ import {
   STORAGE_KEY,
   attackPower,
   cheapestUpgrade,
-  standingIndexes,
-  totalLevels,
   createGame,
   parseSave,
   reduce,
@@ -115,22 +112,17 @@ export function DailyGame() {
   const { t } = useLang();
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
-  const [resetArmed, setResetArmed] = useState(false);
   const [music, setMusic] = useState(true);
-  const [calmOn, setCalmOn] = useState(false);
   useEffect(() => {
     const id = window.setTimeout(() => {
       setMusic(isMusicOn());
-      setCalmOn(isCalm());
+      // Sky 2026-10-22: the sound-effects and less-shake switches are gone, so both are back to normal for everyone.
+      if (isMuted()) setMuted(false);
+      if (isCalm()) setCalm(false);
     }, 0);
     return () => window.clearTimeout(id);
   }, []);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mute, setMute] = useState(false);
-  useEffect(() => {
-    const id = window.setTimeout(() => setMute(isMuted()), 0);
-    return () => window.clearTimeout(id);
-  }, []);
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
@@ -271,12 +263,6 @@ export function DailyGame() {
     }, 0);
     return () => window.clearTimeout(id);
   }, [booted, dispatch, now, state.dice, state.dayKey, state.lastRefillAt]);
-
-  useEffect(() => {
-    if (!resetArmed) return;
-    const id = window.setTimeout(() => setResetArmed(false), 4000);
-    return () => window.clearTimeout(id);
-  }, [resetArmed]);
 
   // Each stop plays its square's sound once, when the walk lands.
   const soundedRoll = useRef(-1);
@@ -432,14 +418,6 @@ export function DailyGame() {
     dispatch({ type: "weapon", target, roll: Math.random() });
   }
 
-  /** Test helper: someone knocks one of your standing buildings down a level. */
-  function onRaided() {
-    const standing = standingIndexes(state.levels);
-    if (standing.length === 0) return;
-    dispatch({ type: "raided", target: standing[Math.floor(Math.random() * standing.length)] });
-  }
-
-  const weapon = totalLevels(state.levels);
   const power = attackPower(state);
   const shownStep = pending?.step ?? 0;
   /** The walk stopped on 龍捲風 and it has blown you on: the board flies you there inside the twister. */
@@ -451,18 +429,6 @@ export function DailyGame() {
   const buildable = buildCost !== null && state.points >= buildCost;
   /** No monster yet, or enough food to grow it: the 🐾 button glows. */
   const petReady = !state.pet || (state.pet.stage > 0 && !fedToday(state.pet));
-
-  const resetBoard = () => {
-    if (!resetArmed) {
-      setResetArmed(true);
-      return;
-    }
-    const stamp = Date.now();
-    dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
-    setResetArmed(false);
-    setSaveNote(null);
-    setMenuOpen(false);
-  };
 
   const intro = state.phase === "search" && introSeen !== state.rollCount;
 
@@ -783,103 +749,70 @@ export function DailyGame() {
                 </button>
               </div>
             </div>
-            {/* Sound and comfort (Sky 2026-10-01): music, sound effects, and less shaking and flashing. */}
-            <div className="grid grid-cols-3 gap-2" data-testid="comfort">
-              {(
-                [
-                  ["music", music, "背景音樂", "🎵"],
-                  ["sfx", !mute, "音效", "🔊"],
-                  ["calm", calmOn, "少啲震同閃", "🌙"],
-                ] as const
-              ).map(([id, on, label, icon]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => {
-                    if (id === "music") {
-                      setMusicOn(!music);
-                      setMusic(!music);
-                    } else if (id === "sfx") {
-                      setMuted(!mute);
-                      setMute(!mute);
-                    } else {
-                      setCalm(!calmOn);
-                      setCalmOn(!calmOn);
-                    }
-                  }}
-                  className={cn(
-                    "flex cursor-pointer flex-col items-center gap-0.5 rounded-2xl border-[3px] py-2 text-sm font-black transition",
-                    on ? "border-[#FBD000] bg-[#FFF8D6] text-[#1E3A8A]" : "border-[#D6DEEA] bg-[#F4F6FA] text-[#94A3B8]",
-                  )}
-                  data-testid={id === "sfx" ? "mute" : `toggle-${id}`}
-                >
-                  <span className={cn("text-2xl", !on && "grayscale")}>{icon}</span>
-                  {t(label)}
-                  <span className="text-[11px]">{on ? t("開") : t("關")}</span>
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                setStoryOpen(true);
-              }}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] py-2 text-sm font-black text-[#1E3A8A]"
-              data-testid="watch-story"
-            >
-              🎬 {t("睇故事")}
-            </button>
-            <LangPicker />
-            <div className="grid grid-cols-4 gap-2" data-testid="daily-character-pick">
-              {CHARACTERS.map((c, i) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  onClick={() => {
-                    if (pending?.running) return;
-                    setPick(i);
-                    savePick(i);
-                  }}
-                  aria-pressed={pick === i}
-                  className={cn(
-                    "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] p-1 transition",
-                    pick === i ? "border-[#FBD000] bg-[#FFF8D6] shadow" : "border-transparent opacity-70",
-                  )}
-                  data-testid={`daily-character-${i}`}
-                >
-                  <img src={c.avatar} alt="" className="size-11 rounded-full border-2 object-cover" style={{ borderColor: c.colour }} />
-                  <span className="mt-0.5 text-xs font-black text-[#1E3A8A]">{t(c.name)}</span>
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
-              <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
-                ⚔️ {power}
-              </span>
-            </div>
+            {/* Sky 2026-10-22: only music and the story, language, and your character; the test buttons are gone. */}
             <div className="grid grid-cols-2 gap-2">
-              <Button
-                className="h-11 cursor-pointer"
-                variant="outline"
-                onClick={() => dispatch({ type: "add-test-die" })}
-                data-testid="test-die"
+              <button
+                type="button"
+                aria-pressed={music}
+                onClick={() => {
+                  setMusicOn(!music);
+                  setMusic(!music);
+                }}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2 rounded-2xl border-[3px] px-3 py-2.5 text-left font-black transition",
+                  music ? "border-[#FBD000] bg-[#FFF8D6] text-[#1E3A8A]" : "border-[#D6DEEA] bg-[#F4F6FA] text-[#94A3B8]",
+                )}
+                data-testid="toggle-music"
               >
-                {t("補一粒（測試）")}
-              </Button>
-              <Button
-                className="h-11 cursor-pointer"
-                variant="outline"
-                onClick={onRaided}
-                disabled={weapon === 0}
-                data-testid="raided"
+                <span className={cn("text-2xl", !music && "grayscale")}>🎵</span>
+                <span className="flex-1 text-sm">{t("背景音樂")}</span>
+                <span className={cn("relative h-6 w-10 rounded-full transition", music ? "bg-[#22A447]" : "bg-[#CBD5E1]")}>
+                  <span className={cn("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", music ? "left-[18px]" : "left-0.5")} />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setStoryOpen(true);
+                }}
+                className="flex cursor-pointer items-center gap-2 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-2.5 font-black text-[#1E3A8A]"
+                data-testid="watch-story"
               >
-                {t("被攻擊（測試）")}
-              </Button>
-              <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
-                {resetArmed ? t("確定重開？") : t("重開棋盤")}
-              </Button>
+                <span className="text-2xl">🎬</span>
+                <span className="text-sm">{t("睇故事")}</span>
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#F4F6FA] px-3 py-2">
+              <span className="text-sm font-black text-[#1E3A8A]">🌐 {t("語言")}</span>
+              <LangPicker />
+            </div>
+            <div className="rounded-2xl bg-[#F4F6FA] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-black text-[#1E3A8A]">{t("揀你嘅角色")}</span>
+                <span key={power} className="rounded-full bg-white px-2.5 py-0.5 text-xs font-black tabular-nums text-[#1E3A8A] animate-[bump_0.35s_ease-out]" data-testid="attack-power">
+                  ⚔️ {power}
+                </span>
+              </div>
+              <div className="grid grid-cols-7 gap-1" data-testid="daily-character-pick">
+                {CHARACTERS.map((c, i) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => {
+                      if (pending?.running) return;
+                      setPick(i);
+                      savePick(i);
+                    }}
+                    aria-pressed={pick === i}
+                    className={cn("flex cursor-pointer flex-col items-center rounded-xl p-0.5 transition", pick === i ? "bg-[#FFF8D6] ring-2 ring-[#FBD000]" : "opacity-60")}
+                    data-testid={`daily-character-${i}`}
+                  >
+                    <img src={c.avatar} alt="" className="size-10 rounded-full border-2 object-cover" style={{ borderColor: c.colour }} />
+                    <span className="mt-0.5 text-[10px] font-black text-[#1E3A8A]">{t(c.name)}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

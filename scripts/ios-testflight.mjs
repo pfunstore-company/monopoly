@@ -86,11 +86,15 @@ try {
   );
   const auth = `-allowProvisioningUpdates -authenticationKeyPath '${key}' -authenticationKeyID ${keyId} -authenticationKeyIssuerID ${rel.issuerId}`;
   const archive = join(DIR, "App.xcarchive");
+  const appId = JSON.parse(readFileSync(join("ios", "App", "App", "capacitor.config.json"), "utf8")).appId;
+  cpSync(join("scripts", "ios-sign.mjs"), join(DIR, "ios-sign.mjs"));
   const script = [
     `set -o pipefail`,
     platform,
     `rm -rf '${archive}' '${join(DIR, "export")}'`,
     `xcodebuild -project '${join(work, "App", "App.xcodeproj")}' -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath '${archive}' ${auth} DEVELOPMENT_TEAM=${rel.teamId} CODE_SIGN_STYLE=Automatic MARKETING_VERSION=${rel.version} CURRENT_PROJECT_VERSION=${rel.build} archive`,
+    // Our own distribution certificate and profile (Apple refused the key its cloud one).
+    `'${process.execPath}' '${join(DIR, "ios-sign.mjs")}' '${key}' ${keyId} ${rel.issuerId} ${rel.teamId} ${appId} '${DIR}'`,
     `xcodebuild -exportArchive -archivePath '${archive}' -exportPath '${join(DIR, "export")}' -exportOptionsPlist '${join(DIR, "ExportOptions.plist")}' ${auth}`,
   ].join(" && ");
   status(`BUILDING ${tag}`);

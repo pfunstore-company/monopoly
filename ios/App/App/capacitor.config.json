@@ -1,0 +1,14 @@
+{
+	"appId": "com.skyyung.boolionaire",
+	"appName": "Boolionaire",
+	"webDir": "www",
+	"server": {
+		"url": "https://monopoly.zbs-yung.workers.dev/",
+		"cleartext": false
+	},
+	"ios": {
+		"contentInset": "never",
+		"backgroundColor": "#1E1446"
+	},
+	"packageClassList": []
+}

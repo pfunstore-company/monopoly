@@ -1,0 +1,6 @@
+// Vendored (Sky 2026-10-22): Capacitor and the AdMob plugin live inside android/, so no node_modules is needed.
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('capacitor-android')
+
+include ':capacitor-community-admob'
+project(':capacitor-community-admob').projectDir = new File('plugins/admob')

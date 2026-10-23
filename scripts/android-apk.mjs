@@ -57,7 +57,7 @@ chmod +x gradlew
 UP='${join(DIR, "upload")}'
 mkdir -p "$UP" && chmod 700 "$UP"
 if [ ! -f "$UP/upload.jks" ]; then
-  ( umask 077; LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 > "$UP/password.txt" )
+  ( umask 077; openssl rand -hex 16 > "$UP/password.txt" )
   keytool -genkeypair -v -keystore "$UP/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
     -storepass "$(cat "$UP/password.txt")" -keypass "$(cat "$UP/password.txt")" \
     -dname "CN=P Fun Store Company Limited, O=P Fun Store Company Limited, C=HK" > /dev/null 2>&1

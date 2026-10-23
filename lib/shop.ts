@@ -100,6 +100,8 @@ export type Collection = {
   starter: boolean;
   monthUntil: string | null;
   monthClaimed: string | null;
+  /** 永久免廣告 bought. */
+  noAds?: boolean;
   /** 精選 bought today (day key → item ids). */
   deals: { day: string; bought: string[] };
   /** Rewarded ads watched today: in the shop, and for the board's 雙倍 offers. */
@@ -241,8 +243,18 @@ export const PACKS = [
   { id: "big", name: "大能量包", price: "US$9.99", energy: 350, specials: 0, once: false },
   { id: "huge", name: "超大能量包", price: "US$19.99", energy: 750, specials: 0, once: false },
 ] as const;
-/** 月卡: 30 days, claim this much 能量 each day (100,000 a day, about 3,000,000 in all). */
-export const MONTH_CARD = { price: "US$4.99", days: 30, daily: 10 } as const;
+/**
+ * 月卡 (Sky 2026-10-23, like most mobile games): 300,000 能量 at once, then 100,000 a day for 30 days (about
+ * 3,300,000 in all), and no 插頁 / 開 app ads while it runs. Buying again adds 30 more days.
+ */
+export const MONTH_CARD = { price: "US$4.99", days: 30, daily: 10, now: 30 } as const;
+/**
+ * 永久免廣告 (Sky 2026-10-23): no 插頁 / 開 app ads ever again, plus 200,000 能量 once. The ads you choose to
+ * watch for a reward (商店、雙倍) stay, since they give you something.
+ */
+export const NO_ADS = { price: "US$3.99", energy: 20 } as const;
+/** No ads pushed at this player today: 永久免廣告 bought, or a 月卡 running. */
+export const adFree = (col: Pick<Collection, "noAds" | "monthUntil">, day: string): boolean => !!col.noAds || (!!col.monthUntil && col.monthUntil >= day);
 
 /** 精選: two offers a day, chosen from the day — a house voucher or a character at a discount. */
 export type Deal = { id: string; prize: Prize; price: number; was: number };
@@ -291,6 +303,7 @@ export function parseCollection(value: unknown): Collection {
     starter: raw.starter === true,
     monthUntil: str(raw.monthUntil),
     monthClaimed: str(raw.monthClaimed),
+    noAds: raw.noAds === true,
     deals: { day: str(raw.deals?.day) ?? "", bought: Array.isArray(raw.deals?.bought) ? raw.deals!.bought.filter((x) => typeof x === "string") : [] },
     ads: { day: str(raw.ads?.day) ?? "", watched: num(raw.ads?.watched) },
     doubleAds: { day: str(raw.doubleAds?.day) ?? "", watched: num(raw.doubleAds?.watched) },

@@ -9,6 +9,7 @@ import { loadPet } from "@/components/wallet-store";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 import { islePrice } from "@/lib/isles";
 import { ENERGY_ICON, formatEnergy } from "@/lib/energy";
+import { track } from "@/lib/analytics";
 
 const SHOW_SPOTS = false;
 /** The board stones float 0.8 world units up (39 picture pixels seen from the camera) and are 84 pixels across. */
@@ -75,7 +76,8 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
       const { width, height } = el.getBoundingClientRect();
       // Fill the width; the falling rocks at the bottom of a tall picture may run off the page (Sky 2026-10-18:
       // 溫泉島 should look as big as 火山島).
-      const scale = Math.min(width / island.w, height / (island.h * 0.85));
+      // iPhone (Sky 2026-10-23: 我的領地 blank): if the box has no height yet, fit the width alone.
+      const scale = height > 0 ? Math.min(width / island.w, height / (island.h * 0.85)) : width / island.w;
       setSize({ w: island.w * scale, h: island.h * scale, drop: Math.max(0, (island.h * scale - height) / 2) });
     };
     fit();
@@ -86,7 +88,20 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
   return (
     <div ref={box} className="flex h-full w-full items-center justify-center">
       <div className="relative shrink-0 animate-[isle-float_6s_ease-in-out_infinite]" style={{ width: size.w, height: size.h, marginTop: size.drop * 2 }} data-testid={`island-${island.id}`}>
-        <img src={island.art} alt="" draggable={false} className="absolute inset-0 h-full w-full select-none" />
+        <img
+          src={island.art}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 h-full w-full select-none"
+          onError={(e: { currentTarget: HTMLImageElement }) => {
+            // One more try (a dropped download leaves the island blank); note it so we can see it happen.
+            const img = e.currentTarget;
+            if (img.dataset.retried) return;
+            img.dataset.retried = "1";
+            track("island_art_failed");
+            img.src = `${island.art}?r=${Date.now()}`;
+          }}
+        />
         {island.falls.map((f, i) => (
           <div
             key={i}

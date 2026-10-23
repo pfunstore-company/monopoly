@@ -4,7 +4,9 @@
  * in a browser there is no AdMob, and the test card (components/fake-ad.tsx) stands in.
  * While testing, Google's own sample ad unit is used: tapping your own live ads can get an AdMob account banned.
  */
-import { TESTING } from "@/lib/shop";
+import { TESTING, adFree } from "@/lib/shop";
+import { loadCollection } from "@/components/wallet-store";
+import { dayKeyOf } from "@/lib/rules";
 import { track } from "@/lib/analytics";
 import { playerApi } from "@/lib/account";
 
@@ -118,7 +120,7 @@ let lastInterstitial = 0;
 export async function afterGameAd(): Promise<void> {
   gamesDone += 1;
   const ad = nativeAds();
-  if (!ad || showing || gamesDone < 2 || Date.now() - lastInterstitial < INTERSTITIAL_GAP_MS) return;
+  if (!ad || showing || gamesDone < 2 || noPushedAds() || Date.now() - lastInterstitial < INTERSTITIAL_GAP_MS) return;
   if (!(await start(ad))) return;
   try {
     await ad.prepareInterstitial({ adId: unit("interstitial"), isTesting: TESTING });
@@ -130,6 +132,15 @@ export async function afterGameAd(): Promise<void> {
 }
 
 let appOpenStarted = false;
+
+/** 月卡 or 永久免廣告: no 插頁 / 開 app ads. */
+function noPushedAds(): boolean {
+  try {
+    return adFree(loadCollection(), dayKeyOf(Date.now()));
+  } catch {
+    return false;
+  }
+}
 
 /** 開啟應用程式廣告: once when the app starts, and again when coming back after being away a while. */
 export function startAppOpenAds(): void {
@@ -147,7 +158,7 @@ export function startAppOpenAds(): void {
     }
   };
   const show = async () => {
-    if (showing || !(await load()) || showing) return;
+    if (showing || noPushedAds() || !(await load()) || showing) return;
     if (await fullScreen(ad, ["appOpenAdClosed", "appOpenAdFailedToShow"], () => ad.showAppOpen({ adId }))) track("ad_app_open");
     void load(); // ready for next time
   };

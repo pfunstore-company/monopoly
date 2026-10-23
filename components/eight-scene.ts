@@ -44,15 +44,40 @@ export function loadThree(): Promise<any> {
 const GLTF_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
 let gltfLoading: Promise<any> | null = null;
 
+/**
+ * iPhone fix (Sky 2026-10-23: 混濁龍 all black in the app). three.js r128 reads a model's pictures with
+ * createImageBitmap wherever it exists, and in the iPhone app those come out empty, so the model draws black.
+ * On iPhones and iPads the loader is made to use plain pictures instead (as newer three.js does for Safari).
+ */
+function iosSafeTextures(Loader: any): any {
+  const ua = navigator.userAgent;
+  const ios = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  if (!ios || Loader.__iosSafe) return Loader;
+  Loader.__iosSafe = true;
+  const parse = Loader.prototype.parse;
+  Loader.prototype.parse = function (...args: unknown[]) {
+    const w = window as unknown as { createImageBitmap?: unknown };
+    const keep = w.createImageBitmap;
+    // The parser picks its picture reader when it is made, inside parse(); hide the bitmap reader just then.
+    w.createImageBitmap = undefined;
+    try {
+      return parse.apply(this, args);
+    } finally {
+      w.createImageBitmap = keep;
+    }
+  };
+  return Loader;
+}
+
 /** Load three.js's model loader once (after three.js itself). */
 export function loadGltfLoader(T: any): Promise<any> {
-  if (T.GLTFLoader) return Promise.resolve(T.GLTFLoader);
+  if (T.GLTFLoader) return Promise.resolve(iosSafeTextures(T.GLTFLoader));
   if (!gltfLoading) {
     gltfLoading = new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = GLTF_URL;
       script.async = true;
-      script.onload = () => (T.GLTFLoader ? resolve(T.GLTFLoader) : reject(new Error("gltf")));
+      script.onload = () => (T.GLTFLoader ? resolve(iosSafeTextures(T.GLTFLoader)) : reject(new Error("gltf")));
       script.onerror = () => {
         gltfLoading = null;
         reject(new Error("gltf"));

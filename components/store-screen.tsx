@@ -19,6 +19,7 @@ import {
   HEROES,
   MAX_SPECIALS,
   MONTH_CARD,
+  NO_ADS,
   ODDS,
   PACKS,
   PITY,
@@ -195,9 +196,15 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
   const monthActive = !!col.monthUntil && col.monthUntil >= day;
   function buyMonth() {
     const from = monthActive ? col.monthUntil! : day;
-    save({ col: { ...col, monthUntil: addDays(from, MONTH_CARD.days) } });
+    save({ wallet: { ...wallet, points: wallet.points + MONTH_CARD.now }, col: { ...col, monthUntil: addDays(from, MONTH_CARD.days) } });
     play("chest");
-    flash(t("（測試）月卡生效"));
+    flash(t("（測試）月卡生效，+{n} 能量", { n: E(MONTH_CARD.now) }));
+  }
+  function buyNoAds() {
+    if (col.noAds) return;
+    save({ wallet: { ...wallet, points: wallet.points + NO_ADS.energy }, col: { ...col, noAds: true } });
+    play("chest");
+    flash(t("（測試）已免廣告，+{n} 能量", { n: E(NO_ADS.energy) }));
   }
   function claimMonth() {
     if (!monthActive || col.monthClaimed === day) return;
@@ -353,7 +360,9 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
               <span className="text-4xl">📅</span>
               <div className="flex-1">
                 <p className="font-black">{t("月卡")}</p>
+                <p className="text-xs font-bold">{t("即送 {n} 能量", { n: E(MONTH_CARD.now) })}</p>
                 <p className="text-xs font-bold">{t("{d} 日內每日領 {n} 能量", { d: MONTH_CARD.days, n: E(MONTH_CARD.daily) })}</p>
+                <p className="text-xs font-bold">{t("期間冇插頁廣告")}</p>
                 {monthActive ? <p className="text-[11px] font-bold text-[#16A34A]">{t("有效至 {day}", { day: col.monthUntil! })}</p> : null}
               </div>
               <div className="flex w-24 flex-col gap-1">
@@ -366,6 +375,18 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
                   </button>
                 ) : null}
               </div>
+            </section>
+            <section className={cn(card, "flex items-center gap-3")} data-testid="no-ads">
+              <span className="text-4xl">🚫</span>
+              <div className="flex-1">
+                <p className="font-black">{t("永久免廣告")}</p>
+                <p className="text-xs font-bold">{t("以後唔會再彈插頁廣告")}</p>
+                <p className="text-xs font-bold">{t("即送 {n} 能量", { n: E(NO_ADS.energy) })}</p>
+                <p className="text-[11px] font-bold text-[#64748B]">{t("自己揀睇嘅獎勵廣告照有")}</p>
+              </div>
+              <button type="button" disabled={!!col.noAds} onClick={buyNoAds} className={cn(buyBtn, "mt-0 w-24")}>
+                {col.noAds ? t("已買") : NO_ADS.price}
+              </button>
             </section>
           </div>
         ) : null}

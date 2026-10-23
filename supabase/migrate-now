@@ -1,1 +1,0 @@
-One-off (2026-10-23): when this file is in the repo, scripts/supabase.mjs moves the old Cloudflare server's data into Supabase once.

@@ -1,0 +1,7 @@
+# Supabase project "boolionaire" (company account, Singapore). Only what the Mac's deploy needs.
+project_id = "vszyjyoatqryctuldarb"
+
+[functions.api]
+# The game signs players in itself (its own session tokens, checked by the function), so Supabase's own
+# login check at the door is off for this function.
+verify_jwt = false

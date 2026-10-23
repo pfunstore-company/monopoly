@@ -1,17 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { FIREBASE_PROJECT, deleteAccount, deleteSelf, getSave, idSignIn, login, providerOf, putSave, register, setup, userOf, validName, verifyIdToken, type Sql } from "../worker/accounts";
+import { FIREBASE_PROJECT, deleteAccount, deleteSelf, getSave, idSignIn, login, providerOf, putSave, register, setup, userOf, validName, verifyIdToken, type Sql } from "../supabase/functions/_shared/accounts.ts";
 
 function db(): Sql {
   // node:sqlite (Node 22) through require, so the type check needs no sqlite types.
   const { DatabaseSync } = require("node:sqlite");
   const d = new DatabaseSync(":memory:");
   return {
-    exec(query: string, ...b: unknown[]) {
+    async q(query: string, ...b: unknown[]) {
       const st = d.prepare(query);
-      const isRead = /^\s*select/i.test(query);
-      const rows: Record<string, unknown>[] = isRead ? st.all(...b) : (st.run(...b), []);
-      return { toArray: () => rows };
+      return /^\s*select/i.test(query) ? (st.all(...b) as Record<string, unknown>[]) : (st.run(...b), []);
     },
   };
 }
@@ -26,27 +24,27 @@ describe("帳號", () => {
   });
   it("register, log in, save, delete", async () => {
     const sql = db();
-    setup(sql);
+    await setup(sql);
     const r = await register(sql, "Sky", "secret1", 1);
     ok(r);
     assert.equal((await register(sql, "sky", "other12", 2)).ok, false, "names are unique, any case");
     assert.equal((await register(sql, "Bob", "123", 2)).ok, false, "password too short");
     const token = (r as unknown as { token: string }).token;
     assert.equal((await userOf(sql, token))?.name, "Sky");
-    ok(putSave(sql, 1, { a: "1" }, 5));
-    assert.deepEqual((getSave(sql, 1) as unknown as { data: unknown }).data, { a: "1" });
+    ok(await putSave(sql, 1, { a: "1" }, 5));
+    assert.deepEqual((await getSave(sql, 1) as unknown as { data: unknown }).data, { a: "1" });
     assert.equal((await login(sql, "SKY", "wrong!!", 6)).ok, false);
     const l = await login(sql, "SKY", "secret1", 7);
     ok(l);
     assert.equal((await deleteAccount(sql, "Sky", "nope123", 8)).ok, false);
     ok(await deleteAccount(sql, "Sky", "secret1", 9));
     assert.equal(await userOf(sql, token), null, "sessions go with it");
-    assert.equal((getSave(sql, 1) as unknown as { data: unknown }).data, null, "and the save");
+    assert.equal((await getSave(sql, 1) as unknown as { data: unknown }).data, null, "and the save");
     ok(await register(sql, "Sky", "secret1", 10));
   });
   it("locks after ten wrong passwords", async () => {
     const sql = db();
-    setup(sql);
+    await setup(sql);
     await register(sql, "Lee", "secret1", 0);
     for (let k = 0; k < 10; k++) await login(sql, "Lee", "bad-pass", 1);
     const r = await login(sql, "Lee", "secret1", 2);
@@ -96,16 +94,16 @@ describe("Google / Apple 登入", () => {
   });
   it("makes the account once, then signs back in; deleting removes it", async () => {
     const sql = db();
-    setup(sql);
+    await setup(sql);
     const first = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com", name: "Sky Yung" }, 1)) as unknown as { ok: boolean; token: string; name: string; fresh: boolean };
     assert.ok(first.ok && first.fresh);
     assert.equal(first.name, "Sky Yung");
     const again = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com" }, 2)) as unknown as { token: string; fresh: boolean };
     assert.equal(again.fresh, false);
     const u = await userOf(sql, again.token);
-    assert.equal(providerOf(sql, u!.id), "apple.com");
+    assert.equal(await providerOf(sql, u!.id), "apple.com");
     assert.equal((await login(sql, "id:uid-1", "", 3)).ok, false, "no password sign-in for these");
-    ok(deleteSelf(sql, u!.id));
+    ok(await deleteSelf(sql, u!.id));
     assert.equal(await userOf(sql, again.token), null);
     const back = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com" }, 4)) as unknown as { fresh: boolean };
     assert.equal(back.fresh, true, "a new account after deleting");

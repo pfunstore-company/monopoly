@@ -1,9 +1,15 @@
 /**
  * 帳號 (Sky 2026-10-22): player accounts with a name and password, a cloud save per account, and deleting an
  * account (App Store and Google Play both require it once players can make accounts). Pure logic over a small
- * SQL interface, so the same code runs in the Cloudflare Durable Object and in the tests.
+ * SQL interface, so the same code runs on Supabase (Edge Function + Postgres), in the old Cloudflare Durable Object
+ * and in the tests.
  */
-export type Sql = { exec(query: string, ...bindings: unknown[]): { toArray(): Record<string, unknown>[] } };
+/**
+ * The database, either SQLite (the Cloudflare Durable Object, the tests) or Postgres (Supabase, 2026-10-23): one
+ * call that runs a statement with ? placeholders and gives back its rows.
+ */
+export type Row = Record<string, unknown>;
+export type Sql = { q(query: string, ...bindings: unknown[]): Promise<Row[]> };
 
 export const NAME_MIN = 3;
 export const NAME_MAX = 16;
@@ -16,14 +22,15 @@ const LOCK_MS = 15 * 60 * 1000;
 export type Result = { ok: true; [k: string]: unknown } | { ok: false; error: string; status: number };
 const fail = (error: string, status = 400): Result => ({ ok: false, error, status });
 
-export function setup(sql: Sql): void {
-  sql.exec(`CREATE TABLE IF NOT EXISTS users (
+/** SQLite tables (the Durable Object and the tests); Supabase gets its tables from supabase/schema.sql. */
+export async function setup(sql: Sql): Promise<void> {
+  await sql.q(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE,
     salt TEXT NOT NULL, hash TEXT NOT NULL, created INTEGER NOT NULL, fails INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0)`);
-  sql.exec(`CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created INTEGER NOT NULL)`);
-  sql.exec(`CREATE TABLE IF NOT EXISTS saves (user_id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated INTEGER NOT NULL)`);
+  await sql.q(`CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created INTEGER NOT NULL)`);
+  await sql.q(`CREATE TABLE IF NOT EXISTS saves (user_id INTEGER PRIMARY KEY, data TEXT NOT NULL, updated INTEGER NOT NULL)`);
   // Google / Apple sign-in (through Firebase): one row per Firebase user, pointing at their account.
-  sql.exec(`CREATE TABLE IF NOT EXISTS links (uid TEXT PRIMARY KEY, provider TEXT NOT NULL, user_id INTEGER NOT NULL, created INTEGER NOT NULL)`);
+  await sql.q(`CREATE TABLE IF NOT EXISTS links (uid TEXT PRIMARY KEY, provider TEXT NOT NULL, user_id INTEGER NOT NULL, created INTEGER NOT NULL)`);
 }
 
 const NAME_CHARS = new RegExp("^[\\p{L}\\p{N}_]+$", "u");
@@ -52,32 +59,32 @@ const randomHex = (n: number) => hex(crypto.getRandomValues(new Uint8Array(n)));
 
 async function newSession(sql: Sql, userId: number, now: number): Promise<string> {
   const token = randomHex(32);
-  sql.exec(`INSERT INTO sessions (token_hash, user_id, created) VALUES (?, ?, ?)`, await sha256(token), userId, now);
+  await sql.q(`INSERT INTO sessions (token_hash, user_id, created) VALUES (?, ?, ?)`, await sha256(token), userId, now);
   return token;
 }
 
 export async function register(sql: Sql, name: unknown, password: unknown, now: number): Promise<Result> {
   if (!validName(name)) return fail("bad-name");
   if (typeof password !== "string" || password.length < PASSWORD_MIN || password.length > 128) return fail("bad-password");
-  if (sql.exec(`SELECT id FROM users WHERE name_key = ?`, keyOf(name)).toArray().length) return fail("name-taken", 409);
+  if ((await sql.q(`SELECT id FROM users WHERE name_key = ?`, keyOf(name))).length) return fail("name-taken", 409);
   const salt = randomHex(16);
-  sql.exec(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, ?, ?, ?)`, name, keyOf(name), salt, await hashPassword(password, salt), now);
-  const id = Number(sql.exec(`SELECT id FROM users WHERE name_key = ?`, keyOf(name)).toArray()[0].id);
+  await sql.q(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, ?, ?, ?)`, name, keyOf(name), salt, await hashPassword(password, salt), now);
+  const id = Number((await sql.q(`SELECT id FROM users WHERE name_key = ?`, keyOf(name)))[0].id);
   return { ok: true, token: await newSession(sql, id, now), name };
 }
 
 /** The account for a name and password (with a lock after too many wrong tries), or a failure. */
 async function check(sql: Sql, name: unknown, password: unknown, now: number): Promise<Result & { id?: number }> {
   if (typeof name !== "string" || typeof password !== "string") return fail("wrong", 401);
-  const row = sql.exec(`SELECT id, name, salt, hash, fails, locked_until FROM users WHERE name_key = ?`, keyOf(name)).toArray()[0];
+  const row = (await sql.q(`SELECT id, name, salt, hash, fails, locked_until FROM users WHERE name_key = ?`, keyOf(name)))[0];
   if (!row || !row.hash) return fail("wrong", 401);
   if (Number(row.locked_until) > now) return fail("locked", 429);
   if (!same(await hashPassword(password, String(row.salt)), String(row.hash))) {
     const fails = Number(row.fails) + 1;
-    sql.exec(`UPDATE users SET fails = ?, locked_until = ? WHERE id = ?`, fails >= LOCK_AFTER ? 0 : fails, fails >= LOCK_AFTER ? now + LOCK_MS : 0, row.id);
+    await sql.q(`UPDATE users SET fails = ?, locked_until = ? WHERE id = ?`, fails >= LOCK_AFTER ? 0 : fails, fails >= LOCK_AFTER ? now + LOCK_MS : 0, row.id);
     return fail("wrong", 401);
   }
-  sql.exec(`UPDATE users SET fails = 0, locked_until = 0 WHERE id = ?`, row.id);
+  await sql.q(`UPDATE users SET fails = 0, locked_until = 0 WHERE id = ?`, row.id);
   return { ok: true, id: Number(row.id), name: String(row.name) };
 }
 
@@ -90,46 +97,46 @@ export async function login(sql: Sql, name: unknown, password: unknown, now: num
 /** The user behind a session token. */
 export async function userOf(sql: Sql, token: string | null): Promise<{ id: number; name: string; created: number } | null> {
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
-  const row = sql.exec(`SELECT u.id, u.name, u.created FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`, await sha256(token)).toArray()[0];
+  const row = (await sql.q(`SELECT u.id, u.name, u.created FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`, await sha256(token)))[0];
   return row ? { id: Number(row.id), name: String(row.name), created: Number(row.created) } : null;
 }
 
 export async function logout(sql: Sql, token: string | null): Promise<Result> {
-  if (token) sql.exec(`DELETE FROM sessions WHERE token_hash = ?`, await sha256(token));
+  if (token) await sql.q(`DELETE FROM sessions WHERE token_hash = ?`, await sha256(token));
   return { ok: true };
 }
 
-export function getSave(sql: Sql, userId: number): Result {
-  const row = sql.exec(`SELECT data, updated FROM saves WHERE user_id = ?`, userId).toArray()[0];
+export async function getSave(sql: Sql, userId: number): Promise<Result> {
+  const row = (await sql.q(`SELECT data, updated FROM saves WHERE user_id = ?`, userId))[0];
   return { ok: true, data: row ? JSON.parse(String(row.data)) : null, updated: row ? Number(row.updated) : 0 };
 }
 
-export function putSave(sql: Sql, userId: number, data: unknown, now: number): Result {
+export async function putSave(sql: Sql, userId: number, data: unknown, now: number): Promise<Result> {
   if (!data || typeof data !== "object" || Array.isArray(data)) return fail("bad-save");
   const text = JSON.stringify(data);
   if (text.length > SAVE_MAX) return fail("too-big", 413);
-  sql.exec(`INSERT INTO saves (user_id, data, updated) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated = excluded.updated`, userId, text, now);
+  await sql.q(`INSERT INTO saves (user_id, data, updated) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated = excluded.updated`, userId, text, now);
   return { ok: true, updated: now };
 }
 
-function wipe(sql: Sql, userId: number): void {
-  sql.exec(`DELETE FROM links WHERE user_id = ?`, userId);
-  sql.exec(`DELETE FROM sessions WHERE user_id = ?`, userId);
-  sql.exec(`DELETE FROM saves WHERE user_id = ?`, userId);
-  sql.exec(`DELETE FROM users WHERE id = ?`, userId);
+async function wipe(sql: Sql, userId: number): Promise<void> {
+  await sql.q(`DELETE FROM links WHERE user_id = ?`, userId);
+  await sql.q(`DELETE FROM sessions WHERE user_id = ?`, userId);
+  await sql.q(`DELETE FROM saves WHERE user_id = ?`, userId);
+  await sql.q(`DELETE FROM users WHERE id = ?`, userId);
 }
 
 /** 刪除帳號: the account, its sessions and its save, for good. Needs the password again (in the app or on the web page). */
 export async function deleteAccount(sql: Sql, name: unknown, password: unknown, now: number): Promise<Result> {
   const who = await check(sql, name, password, now);
   if (!who.ok) return who;
-  wipe(sql, who.id!);
+  await wipe(sql, who.id!);
   return { ok: true, deleted: true };
 }
 
 /** 刪除帳號 for a signed-in player (Google / Apple accounts have no password to ask for). */
-export function deleteSelf(sql: Sql, userId: number): Result {
-  wipe(sql, userId);
+export async function deleteSelf(sql: Sql, userId: number): Promise<Result> {
+  await wipe(sql, userId);
   return { ok: true, deleted: true };
 }
 
@@ -176,26 +183,26 @@ function displayName(name: string | undefined): string {
 
 /** Sign in with checked Google / Apple claims; the first time makes the account. */
 export async function idSignIn(sql: Sql, who: IdClaims, now: number): Promise<Result> {
-  let link = sql.exec(`SELECT user_id FROM links WHERE uid = ?`, who.sub).toArray()[0];
+  let link = (await sql.q(`SELECT user_id FROM links WHERE uid = ?`, who.sub))[0];
   let fresh = false;
   if (!link) {
     const name = displayName(who.name);
     // name_key "id:<uid>" can never clash with a typed name (":" isn't allowed there); no password.
-    sql.exec(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, '', '', ?)`, name, `id:${who.sub}`, now);
-    const id = Number(sql.exec(`SELECT id FROM users WHERE name_key = ?`, `id:${who.sub}`).toArray()[0].id);
-    sql.exec(`INSERT INTO links (uid, provider, user_id, created) VALUES (?, ?, ?, ?)`, who.sub, who.provider, id, now);
+    await sql.q(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, '', '', ?)`, name, `id:${who.sub}`, now);
+    const id = Number((await sql.q(`SELECT id FROM users WHERE name_key = ?`, `id:${who.sub}`))[0].id);
+    await sql.q(`INSERT INTO links (uid, provider, user_id, created) VALUES (?, ?, ?, ?)`, who.sub, who.provider, id, now);
     link = { user_id: id };
     fresh = true;
   }
   const id = Number(link.user_id);
-  const row = sql.exec(`SELECT name FROM users WHERE id = ?`, id).toArray()[0];
+  const row = (await sql.q(`SELECT name FROM users WHERE id = ?`, id))[0];
   if (!row) return fail("wrong", 401);
   return { ok: true, token: await newSession(sql, id, now), name: String(row.name), provider: who.provider, fresh };
 }
 
 /** How the account signs in: "google.com", "apple.com" or "password". */
-export function providerOf(sql: Sql, userId: number): string {
-  return String(sql.exec(`SELECT provider FROM links WHERE user_id = ?`, userId).toArray()[0]?.provider ?? "password");
+export async function providerOf(sql: Sql, userId: number): Promise<string> {
+  return String((await sql.q(`SELECT provider FROM links WHERE user_id = ?`, userId))[0]?.provider ?? "password");
 }
 
 /**
@@ -205,7 +212,7 @@ export function providerOf(sql: Sql, userId: number): string {
 export async function guestAccount(sql: Sql, now: number): Promise<Result> {
   const key = `guest:${randomHex(16)}`;
   const name = `訪客${1000 + Math.floor(Math.random() * 9000)}`;
-  sql.exec(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, '', '', ?)`, name, key, now);
-  const id = Number(sql.exec(`SELECT id FROM users WHERE name_key = ?`, key).toArray()[0].id);
+  await sql.q(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, '', '', ?)`, name, key, now);
+  const id = Number((await sql.q(`SELECT id FROM users WHERE name_key = ?`, key))[0].id);
   return { ok: true, token: await newSession(sql, id, now), name };
 }

@@ -13,7 +13,8 @@ import { COLLECTION_KEY, newCollection, parseCollection, type Collection } from 
  * units (1 unit = 100 coins = 10,000 能量). The board listens for ENERGY_EVENT to pick up spending done elsewhere.
  */
 export const ENERGY_EVENT = "boolionaire-energy";
-const COINS_PER_UNIT = 100;
+// 1 table unit (10,000 能量) = 10 board coins (1,000 能量 each) since 2026-10-23.
+const COINS_PER_UNIT = 10;
 
 function readSave(): { v?: number; pages?: number; state?: { points?: number } } | null {
   try {

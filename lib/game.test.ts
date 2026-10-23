@@ -248,7 +248,7 @@ describe("daily board", () => {
     assert.equal(scored.enemyShield, false);
     assert.equal(scored.weaponReadout?.smashed, 0);
     assert.equal(scored.rivalLevels[0], 2, "knocked from level 3 to 2");
-    assert.match(scored.log[0]?.text ?? "", /得 400 能量，合計 400/);
+    assert.match(scored.log[0]?.text ?? "", /得 4,000 能量，合計 4,000/);
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
     assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 60);
 

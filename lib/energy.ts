@@ -3,10 +3,12 @@
  *
  * The game logic keeps its old small units so saves and tests stay the same; only what the player
  * sees is scaled:
- * - the daily board (state.points, costs, chests, the black hole, attacks, theme rewards): 1 unit = 100 能量;
+ * - the daily board (state.points, costs, chests, the black hole, attacks, theme rewards): 1 unit = 1,000 能量;
  * - the public table and the realm (cash, rent, prices, tickets, the wallet): 1 unit = 10,000 能量.
  */
-export const COIN_ENERGY = 100;
+// Sky 2026-10-23 (經濟方案): the daily board pays ten times more — 1 coin = 1,000 能量 (was 100) — so playing,
+// not ads, is the main way to earn. City prices are in coins too, so building keeps its pace.
+export const COIN_ENERGY = 1000;
 export const TABLE_ENERGY = 10_000;
 export const ENERGY_ICON = "/art/ui/energy.webp";
 

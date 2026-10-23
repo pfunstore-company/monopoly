@@ -11,7 +11,7 @@ import { ShopScreen } from "@/components/shop-screen";
 import { StoreScreen } from "@/components/store-screen";
 import { FakeAd } from "@/components/fake-ad";
 import { ENERGY_EVENT, bumpIsles, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
-import { ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
+import { DOUBLE_ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
 import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
@@ -139,7 +139,7 @@ export function DailyGame() {
   const [realmOpen, setRealmOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   // 睇廣告雙倍 (Sky 2026-10-08): after a chest, wheel or 龍巢, offer the reward again for an ad (Sky 2026-10-22: 7 a day, counted apart from the shop's).
-  const [adsToday, setAdsToday] = useState(ADS_PER_DAY);
+  const [adsToday, setAdsToday] = useState(DOUBLE_ADS_PER_DAY);
   const [adFor, setAdFor] = useState<number | null>(null);
   const [offerSkip, setOfferSkip] = useState(-1);
   useEffect(() => {

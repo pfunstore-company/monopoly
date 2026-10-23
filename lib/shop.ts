@@ -29,10 +29,11 @@ export const PITY = 50;
 export const PULL_PRICE = 10;
 export const TEN_PRICE = 90;
 
-/** Sky 2026-10-22: 7 ads a day in the shop and, counted apart, 7 for the board's 雙倍 offers. */
-export const ADS_PER_DAY = 7;
+/** Sky 2026-10-23 (經濟方案): 5 ads a day in the shop; the board's 雙倍 offers keep their own 7. */
+export const ADS_PER_DAY = 5;
+export const DOUBLE_ADS_PER_DAY = 7;
 /** What one free ad in the shop gives. */
-export const AD_ENERGY = 3; // 30,000 能量 (Sky 2026-10-22; was 200,000)
+export const AD_ENERGY = 1.5; // 15,000 能量 (Sky 2026-10-23; was 30,000)
 
 /**
  * 特別卡 (Sky 2026-10-17): five SSR-strength cards, played only on 領地 tables; take up to three into a game, each
@@ -139,7 +140,7 @@ export function newCollection(): Collection {
 export type AdKind = "shop" | "double";
 export function adsLeft(c: Collection, day: string, kind: AdKind = "shop"): number {
   const a = kind === "shop" ? c.ads : c.doubleAds;
-  return ADS_PER_DAY - (a && a.day === day ? a.watched : 0);
+  return (kind === "shop" ? ADS_PER_DAY : DOUBLE_ADS_PER_DAY) - (a && a.day === day ? a.watched : 0);
 }
 export function watchAd(c: Collection, day: string, kind: AdKind = "shop"): Collection | null {
   if (adsLeft(c, day, kind) <= 0) return null;
@@ -228,15 +229,20 @@ export function convertMaterials(c: Collection, stock: Stock, random: () => numb
   return { collection: next, cards };
 }
 
-/** 能量 packs. Real money through App Store / Google Play later; for now test buttons add the 能量 straight away. */
+/**
+ * 能量 packs, priced in US dollars (Sky 2026-10-23; the stores show each country its own price). Real money through
+ * App Store / Google Play later; for now test buttons add the 能量 straight away. `energy` is in table units
+ * (×10,000): a normal player earns about 113,000 能量 a day, the second island costs 3,500,000.
+ */
 export const PACKS = [
-  { id: "starter", name: "新手禮包", price: "HK$8", energy: 300, specials: 1, once: true },
-  { id: "small", name: "細能量包", price: "HK$8", energy: 100, specials: 0, once: false },
-  { id: "mid", name: "中能量包", price: "HK$38", energy: 550, specials: 0, once: false },
-  { id: "big", name: "大能量包", price: "HK$78", energy: 1200, specials: 0, once: false },
+  { id: "starter", name: "新手禮包", price: "US$0.99", energy: 50, specials: 1, once: true },
+  { id: "small", name: "細能量包", price: "US$0.99", energy: 30, specials: 0, once: false },
+  { id: "mid", name: "中能量包", price: "US$4.99", energy: 160, specials: 0, once: false },
+  { id: "big", name: "大能量包", price: "US$9.99", energy: 350, specials: 0, once: false },
+  { id: "huge", name: "超大能量包", price: "US$19.99", energy: 750, specials: 0, once: false },
 ] as const;
-/** 月卡: 30 days, claim this much 能量 each day. */
-export const MONTH_CARD = { price: "HK$38", days: 30, daily: 30 } as const;
+/** 月卡: 30 days, claim this much 能量 each day (100,000 a day, about 3,000,000 in all). */
+export const MONTH_CARD = { price: "US$4.99", days: 30, daily: 10 } as const;
 
 /** 精選: two offers a day, chosen from the day — a house voucher or a character at a discount. */
 export type Deal = { id: string; prize: Prize; price: number; was: number };

@@ -1,4 +1,4 @@
-import { ENERGY_ICON } from "@/lib/energy";
+import { coinEnergy, ENERGY_ICON } from "@/lib/energy";
 import { GEM_ICON } from "@/components/gem";
 import { WHEEL_PRIZES } from "@/lib/game";
 
@@ -45,7 +45,7 @@ export function PrizeWheel({ stop }: { stop: number }) {
                   <>
                     <image href={ENERGY_ICON} x="-17" y="-26" width="34" height="34" />
                     <text y="22" textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff" stroke="#1E3A8A" strokeWidth="3" paintOrder="stroke">
-                      {prize.coins * 100}
+                      {coinEnergy(prize.coins)}
                     </text>
                   </>
                 ) : (

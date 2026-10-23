@@ -172,6 +172,7 @@ const DICT: Record<string, { hant?: string; hans: string; en: string }> = {
   "細能量包": { hant: "小能量包", hans: "小能量包", en: "Small Energy pack" },
   "中能量包": { hans: "中能量包", en: "Medium Energy pack" },
   "大能量包": { hans: "大能量包", en: "Large Energy pack" },
+  "超大能量包": { hans: "超大能量包", en: "Huge Energy pack" },
   "收埋": { hant: "收合", hans: "收起", en: "Hide" },
   "打開": { hant: "展開", hans: "打开", en: "Show" },
   "撳上面已起嘅建築可以換款或者拆走": { hant: "點選上方已建造的建築，可更換款式或拆除", hans: "点上面已盖的建筑可以换款或拆掉", en: "Tap a building above to change its style or remove it" },

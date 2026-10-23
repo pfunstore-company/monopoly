@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ADS_PER_DAY, ODDS, PITY, adsLeft, convertMaterials, draw, newCollection, rollRarity, watchAd } from "./shop";
+import { ADS_PER_DAY, DOUBLE_ADS_PER_DAY, ODDS, PITY, adsLeft, convertMaterials, draw, newCollection, rollRarity, watchAd } from "./shop";
 
 describe("商店", () => {
   it("odds add up to 100% and pity gives an SSR", () => {
@@ -33,8 +33,8 @@ describe("商店", () => {
   it("14 rewarded ads a day, then none until tomorrow", () => {
     let c = newCollection();
     for (let k = 0; k < ADS_PER_DAY; k++) c = watchAd(c, "2026-10-08")!;
-    assert.equal(ADS_PER_DAY, 7);
-    assert.equal(adsLeft(c, "2026-10-08", "double"), ADS_PER_DAY, "the board's 雙倍 ads count apart");
+    assert.equal(ADS_PER_DAY, 5);
+    assert.equal(adsLeft(c, "2026-10-08", "double"), DOUBLE_ADS_PER_DAY, "the board's 雙倍 ads count apart");
     assert.equal(watchAd(c, "2026-10-08"), null);
     assert.equal(adsLeft(c, "2026-10-09"), ADS_PER_DAY);
   });

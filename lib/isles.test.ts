@@ -12,13 +12,13 @@ describe("領地嘅島", () => {
   });
   it("later islands cost 能量, in order", () => {
     assert.equal(islePrice(0), 0);
-    assert.equal(islePrice(1), 3_000_000);
-    assert.equal(islePrice(2), 4_500_000);
+    assert.equal(islePrice(1), 3_500_000);
+    assert.equal(islePrice(2), 5_250_000);
     const ids = ["space", "two", "three"];
     assert.equal(buyIsle(NO_ISLES, ids, 1, 9e9).isles.owned.length, 0, "needs the first island");
     const one = { ...NO_ISLES, owned: ["space"] };
-    assert.equal(buyIsle(one, ids, 1, 2_999_999).isles.owned.length, 1, "not enough 能量");
-    const r = buyIsle(one, ids, 1, 3_500_000);
+    assert.equal(buyIsle(one, ids, 1, 3_499_999).isles.owned.length, 1, "not enough 能量");
+    const r = buyIsle(one, ids, 1, 4_000_000);
     assert.deepEqual(r.isles.owned, ["space", "two"]);
     assert.equal(r.energy, 500_000);
     assert.equal(buyIsle(r.isles, ids, 0, 9e9).isles.owned.length, 2, "the first is never bought");

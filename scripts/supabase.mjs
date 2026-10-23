@@ -74,6 +74,8 @@ try {
     const r = await fetch(`${OLD}/migrate-export`, { headers: { "X-Migrate-Key": key } });
     const dump = await r.json();
     if (!dump.ok) throw new Error(`export ${r.status} ${JSON.stringify(dump).slice(0, 200)}`);
+    // Test accounts Claude made while checking the new server.
+    await query(`delete from game.users where name like '測試搬家%';`);
     const counts = [];
     for (const [table, rows] of Object.entries(dump.tables)) {
       if (!rows.length) continue;

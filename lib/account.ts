@@ -34,13 +34,19 @@ export function playAsGuest(): void {
 }
 
 type Reply = { ok: boolean; error?: string; [k: string]: unknown };
+/** 遊戲伺服器 (Sky 2026-10-23): the company's Supabase project, Edge Function "api". */
+export const API_BASE = "https://vszyjyoatqryctuldarb.supabase.co/functions/v1/api";
 async function api(path: string, method: string, body?: unknown, token?: string): Promise<Reply> {
   try {
-    const r = await fetch(`/api/${path}`, {
+    const text = body !== undefined ? JSON.stringify(body) : undefined;
+    // A small save goes as a plain request with the token inside, so it can still be sent while the app is being
+    // put away (keepalive), with no permission round-trip first.
+    const quiet = path === "save" && method === "POST" && (text?.length ?? 0) < 60_000;
+    const r = await fetch(`${API_BASE}/${path}`, {
       method,
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      keepalive: method === "PUT" && JSON.stringify(body ?? "").length < 60_000,
+      headers: quiet ? { "Content-Type": "text/plain" } : { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      ...(text !== undefined ? { body: text } : {}),
+      keepalive: quiet,
     });
     return (await r.json().catch(() => ({ ok: false, error: "server" }))) as Reply;
   } catch {
@@ -213,7 +219,8 @@ async function finishSignIn(s: Session): Promise<{ ok: true; reload: boolean }> 
 export async function upload(): Promise<boolean> {
   const s = session();
   if (!s) return false;
-  const r = await api("save", "PUT", { data: collectSave() }, s.token);
+  const data = collectSave();
+  const r = JSON.stringify(data).length < 59_000 ? await api("save", "POST", { token: s.token, data }) : await api("save", "PUT", { data }, s.token);
   if (!r.ok && r.error === "signed-out") localStorage.removeItem(SESSION_KEY);
   return r.ok;
 }

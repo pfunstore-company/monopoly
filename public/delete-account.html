@@ -50,7 +50,7 @@
     msg.textContent = "請稍候… / Please wait…";
     let r;
     try {
-      r = await (await fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) })).json();
+      r = await (await fetch("https://vszyjyoatqryctuldarb.supabase.co/functions/v1/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) })).json();
     } catch { r = { ok: false }; }
     await firebase.auth().signOut().catch(() => {});
     msg.style.color = r.ok ? "#16a34a" : "#dc2626";
@@ -69,7 +69,7 @@
     msg.textContent = "請稍候… / Please wait…";
     let r;
     try {
-      r = await (await fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: document.getElementById("name").value.trim(), password: document.getElementById("pw").value }) })).json();
+      r = await (await fetch("https://vszyjyoatqryctuldarb.supabase.co/functions/v1/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: document.getElementById("name").value.trim(), password: document.getElementById("pw").value }) })).json();
     } catch { r = { ok: false, error: "offline" }; }
     go.disabled = false;
     msg.style.color = r.ok ? "#16a34a" : "#dc2626";

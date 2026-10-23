@@ -12,7 +12,20 @@
           "package_name": "com.skyyung.boolionaire"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "246388073348-ma2ts3lr13a20otfbhcl1v28tqi2e9o7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.skyyung.boolionaire",
+            "certificate_hash": "f432472cbd17297e8f95201a841007f967cbeead"
+          }
+        },
+        {
+          "client_id": "246388073348-7p2a0a8ci45jljg26hkih8u3rftsvvle.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBco-vGcMHZD1fIeyqHuUDxIEE4hbMuDXg"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "246388073348-7p2a0a8ci45jljg26hkih8u3rftsvvle.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "246388073348-qndf0i162gc1gscpd1uos456v4camqod.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.skyyung.boolionaire"
+              }
+            }
+          ]
         }
       }
     }

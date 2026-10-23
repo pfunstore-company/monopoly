@@ -8,15 +8,23 @@
  * ~1 coin = 1,000 能量 per die with the dice that come back) and 3 shop ads at 15,000 — about 113,000 能量 a day,
  * so about 31 days. A keen player (6 visits, 5 ads) ≈ 211,000 a day, 17 days; no ads ≈ 51 days.
  */
-export type QuestId = "rolls" | "city" | "tables" | "feeds";
+export type QuestId = "level" | "rolls" | "city" | "tables" | "feeds" | "dragon";
 export type Quest = { id: QuestId; text: string; goal: number };
 
-/** What earns the first island. */
+/**
+ * What earns the first island (Sky 2026-10-23: harder, about two weeks for a normal player). A normal player rolls
+ * about 60 dice, raises about 5 city levels and feeds about 20 bites a day, and plays a table game every other
+ * day; the dragon reaches R (100 🍖 and 12 💎 from N) in about a week. Lv15 takes about two weeks (lib/level.ts).
+ * SR was the first idea, but it needs about 30 🍖 a day, more than a normal player finds, so R it is.
+ */
 export const FIRST_ISLE_QUESTS: readonly Quest[] = [
-  { id: "rolls", text: "每日棋盤擲骰 {n} 次", goal: 100 },
-  { id: "city", text: "城市建築合共升 {n} 級", goal: 15 },
-  { id: "tables", text: "玩完 {n} 局對局", goal: 3 },
-  { id: "feeds", text: "餵龍 {n} 次", goal: 10 },
+  { id: "level", text: "等級升到 Lv{n}", goal: 15 },
+  { id: "rolls", text: "每日棋盤擲骰 {n} 次", goal: 800 },
+  { id: "city", text: "城市建築合共升 {n} 級", goal: 60 },
+  { id: "tables", text: "玩完 {n} 局對局", goal: 10 },
+  { id: "feeds", text: "餵龍 {n} 次", goal: 150 },
+  // The dragon's grade: 1 N, 2 R, 3 SR, 4 SSR.
+  { id: "dragon", text: "龍升到 R 級", goal: 2 },
 ];
 
 /** 能量 for the 2nd, 3rd, 4th … island: 3,500,000, then half as much again each time. */
@@ -26,9 +34,10 @@ export function islePrice(index: number): number {
 }
 
 export type Progress = Record<QuestId, number>;
-export type Isles = { owned: string[]; tables: number; feeds: number };
+/** `lv`: the highest 等級 whose reward was given (-1: not yet worked out on this save). */
+export type Isles = { owned: string[]; tables: number; feeds: number; lv: number };
 export const ISLES_KEY = "boolionaire-isles-v1";
-export const NO_ISLES: Isles = { owned: [], tables: 0, feeds: 0 };
+export const NO_ISLES: Isles = { owned: [], tables: 0, feeds: 0, lv: -1 };
 
 export function parseIsles(raw: unknown): Isles {
   const v = (raw ?? {}) as Partial<Isles>;
@@ -37,6 +46,7 @@ export function parseIsles(raw: unknown): Isles {
     owned: Array.isArray(v.owned) ? v.owned.filter((id): id is string => typeof id === "string").slice(0, 50) : [],
     tables: n(v.tables),
     feeds: n(v.feeds),
+    lv: typeof v.lv === "number" && v.lv >= 1 ? Math.min(99, Math.floor(v.lv)) : -1,
   };
 }
 

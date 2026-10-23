@@ -11,8 +11,10 @@ import { ShopScreen } from "@/components/shop-screen";
 import { StoreScreen } from "@/components/store-screen";
 import { FakeAd } from "@/components/fake-ad";
 import { adsLeftToday } from "@/lib/ads";
-import { ENERGY_EVENT, bumpIsles, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
-import { DOUBLE_ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
+import { ENERGY_EVENT, bumpIsles, loadCollection, loadIsles, saveCollection, saveIsles, takeOldRealmEnergy, xpParts } from "@/components/wallet-store";
+import { UNLOCKS, isOpen, levelOf, levelReward, xpOf, type Unlock } from "@/lib/level";
+import { track } from "@/lib/analytics";
+import { DOUBLE_ADS_PER_DAY, TESTING, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
 import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
@@ -44,6 +46,7 @@ import {
   type GameState,
   type StealBox,
   SAVE_PAGES,
+  totalLevels,
 } from "@/lib/game";
 import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { BUILDINGS, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
@@ -438,6 +441,61 @@ export function DailyGame() {
   /** No monster yet, or enough food to grow it: the 🐾 button glows. */
   const petReady = !state.pet || (state.pet.stage > 0 && !fedToday(state.pet));
 
+  // 等級 (Sky 2026-10-23): worked out from what you've done; each new level pays 能量 and dice once.
+  const [lvl, setLvl] = useState<{ level: number; into: number; need: number } | null>(null);
+  const [levelUp, setLevelUp] = useState<{ level: number; coins: number; dice: number } | null>(null);
+  const [lockNote, setLockNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!booted) return;
+    const id = window.setTimeout(() => {
+      const parts = { ...xpParts(), rolls: state.rollCount, city: state.theme * 25 + totalLevels(state.levels) };
+      const now = levelOf(xpOf(parts));
+      setLvl(now);
+      const isles = loadIsles();
+      // A save from before 等級: start counting from here, no back pay.
+      if (isles.lv < 1) return saveIsles({ ...isles, lv: now.level });
+      if (now.level <= isles.lv) return;
+      let coins = 0;
+      let dice = 0;
+      for (let l = isles.lv + 1; l <= now.level; l++) {
+        const r = levelReward(l);
+        coins += r.coins;
+        dice += r.dice;
+      }
+      saveIsles({ ...isles, lv: now.level });
+      let added = 0;
+      setState((cur) => {
+        added = Math.max(0, Math.min(DICE_CAP, cur.dice + dice) - cur.dice);
+        return { ...cur, points: cur.points + coins, dice: cur.dice + added };
+      });
+      setLevelUp({ level: now.level, coins, dice: added || Math.min(dice, DICE_CAP) });
+      play("chest");
+      juice("large");
+      track("level_up", { level: now.level });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [booted, state.rollCount, state.theme, state.levels, petOpen, tableOpen, realmOpen, cityOpen]);
+  useEffect(() => {
+    if (!lockNote) return;
+    const id = window.setTimeout(() => setLockNote(null), 2200);
+    return () => window.clearTimeout(id);
+  }, [lockNote]);
+  const level = lvl?.level ?? 1;
+  const lockedAt = (what: Unlock) => (isOpen(what, level, TESTING) ? 0 : UNLOCKS[what]);
+  const openOr = (what: Unlock | null, open: () => void) => () => {
+    if (pending?.running) return;
+    const at = what ? lockedAt(what) : 0;
+    if (at) return setLockNote(t("Lv{n} 開放", { n: at }));
+    open();
+  };
+  const navItems: { id: string; label: string; icon: string; onClick: () => void; testId: string; glow?: boolean; badge?: boolean; locked?: number; tip?: boolean }[] = [
+    { id: "city", label: "城市", icon: "/art/ui/build.webp", onClick: onBuild, testId: "raise", glow: buildable, tip: buildable && !pending?.running && state.levels.every((l) => l === 0) },
+    { id: "pet", label: "怪獸", icon: "/art/ui/pet.webp", onClick: openOr(null, () => setPetOpen(true)), testId: "open-pet", glow: petReady, badge: !!state.pet && !fedToday(state.pet) },
+    { id: "realm", label: "領地", icon: "/art/ui/land.webp", onClick: openOr("realm", () => setRealmOpen(true)), testId: "open-realm", locked: lockedAt("realm") },
+    { id: "table", label: "公開桌", icon: "/art/ui/table.webp", onClick: openOr("table", () => setTableOpen(true)), testId: "open-table", locked: lockedAt("table") },
+    { id: "store", label: "商店", icon: "/art/ui/shop.webp", onClick: openOr(null, () => setStoreOpen(true)), testId: "open-store" },
+  ];
+
   const intro = state.phase === "search" && introSeen !== state.rollCount;
 
   if (storeOpen && state.phase === "walk") {
@@ -611,6 +669,29 @@ export function DailyGame() {
           ) : null}
         </div>
       ) : null}
+      {/* 升級 (Sky 2026-10-23). */}
+      {levelUp ? (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 px-8" onClick={() => setLevelUp(null)} data-testid="level-up">
+          <div className="w-full max-w-xs animate-[pop_0.35s_ease-out] rounded-[28px] border-4 border-[#FBD000] bg-white p-5 text-center text-[#1E3A8A] shadow-2xl">
+            <p className="text-sm font-black text-[#F59E0B]">{t("升級！")}</p>
+            <p className="text-5xl font-black">Lv{levelUp.level}</p>
+            <p className="mt-3 flex items-center justify-center gap-3 text-xl font-black tabular-nums">
+              <span className="flex items-center gap-1">
+                <img src={ENERGY_ICON} alt={t("能量")} className="size-7" />+{formatEnergy(coinEnergy(levelUp.coins))}
+              </span>
+              {levelUp.dice ? <span>+{levelUp.dice}🎲</span> : null}
+            </p>
+            {Object.entries(UNLOCKS).some(([, at]) => at === levelUp.level) ? (
+              <p className="mt-2 rounded-full bg-[#FFF8D6] px-3 py-1 text-sm font-black">
+                {t("新玩法開放：{name}", { name: t(levelUp.level === UNLOCKS.table ? "公開桌" : "領地") })}
+              </p>
+            ) : null}
+            <button type="button" onClick={() => setLevelUp(null)} className="mt-4 h-11 w-full cursor-pointer rounded-full bg-[#22A447] font-black text-white">
+              {t("知道")}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {/* 孵化: a wordless full-screen show (Sky 2026-10-01). */}
       {hatchedNow !== null ? <HatchIntro element={hatchedNow} /> : null}
       {storyOpen ? <StoryVideo onDone={() => setStoryOpen(false)} /> : null}
@@ -636,81 +717,25 @@ export function DailyGame() {
             ) : null}
           </div>
         </div>
-        {/* Sky (2026-10-08): six buttons don't fit in one row on a phone, so they sit in two rows of three. */}
-        <div className="grid grid-cols-3 justify-items-center gap-x-1.5 gap-y-1">
-        {/* Build (你個城): a golden hammer beside the dragon, no price under it (Sky 2026-09-30). */}
-        <button
-          type="button"
-          onClick={onBuild}
-          disabled={pending?.running === true}
-          className="relative flex shrink-0 cursor-pointer flex-col items-center disabled:cursor-default"
-          aria-label={t("你個城")}
-          data-testid="raise"
-        >
-          <img
-            src="/art/ui/build.webp"
-            alt=""
-            draggable={false}
-            className={cn(
-              "size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)] active:scale-90",
-              buildable && "animate-[icon-glow_1.8s_ease-in-out_infinite]",
-            )}
-          />
-          {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
-            <TipHand className="left-1/2 top-14 -translate-x-1/2 rotate-180" />
+        {/* Sky 2026-10-23: 等級 and 設定 top right; the rest moved to the menu bar at the bottom. */}
+        <div className="flex shrink-0 items-start gap-2">
+          {lvl ? (
+            <div className="flex flex-col items-center rounded-2xl border-2 border-[#FBD000] bg-[#1E3A8A] px-2.5 pb-1 pt-0.5 text-white shadow-md" data-testid="hud-level">
+              <span className="text-base font-black leading-tight tabular-nums">Lv{lvl.level}</span>
+              <span className="relative mt-0.5 h-1.5 w-12 overflow-hidden rounded-full bg-white/25">
+                <span className="absolute inset-y-0 left-0 rounded-full bg-[#FBD000]" style={{ width: `${lvl.need ? Math.min(100, (lvl.into / lvl.need) * 100) : 100}%` }} />
+              </span>
+            </div>
           ) : null}
-        </button>
-        <button
-          type="button"
-          onClick={() => !pending?.running && setPetOpen(true)}
-          className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
-          aria-label={t("你隻怪獸")}
-          data-testid="open-pet"
-        >
-          <img
-            src="/art/ui/pet.webp"
-            alt=""
-            draggable={false}
-            className={cn("size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", petReady && "animate-[icon-glow_1.8s_ease-in-out_infinite]")}
-          />
-          {state.pet && !fedToday(state.pet) ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
-        </button>
-        <button
-          type="button"
-          onClick={() => !pending?.running && setTableOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
-          aria-label={t("公開桌")}
-          data-testid="open-table"
-        >
-          <img src="/art/ui/table.webp" alt="" draggable={false} className="size-10 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => !pending?.running && setRealmOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
-          aria-label={t("領地")}
-          data-testid="open-realm"
-        >
-          <img src="/art/ui/land.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => !pending?.running && setStoreOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
-          aria-label={t("商店")}
-          data-testid="open-store"
-        >
-          <img src="/art/ui/shop.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
-          aria-label={t("設定")}
-          data-testid="menu"
-        >
-          <img src="/art/ui/gear.webp" alt="" draggable={false} className="size-10 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
+            aria-label={t("設定")}
+            data-testid="menu"
+          >
+            <img src="/art/ui/gear.webp" alt="" draggable={false} className="size-10 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
+          </button>
         </div>
       </header>
 
@@ -723,23 +748,51 @@ export function DailyGame() {
       {/* The open space between the bars: the board is centred here. Taps fall through to the camera. */}
       <section className="pointer-events-none relative z-20 min-h-0 flex-1" />
 
-      {/* Bottom bar: building sits to the side; the dice clock in the middle. */}
-      {/* The footer lets taps through to the board (the GO stone sits just above it); only its buttons take taps. */}
-      <footer className="pointer-events-none relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
-
-        <div className="relative flex min-h-14 flex-col items-center justify-end gap-1">
-          {/* GO is carved into the middle stone now (tap it); this button is for keyboards and screen readers. */}
-          <button
-            type="button"
-            onClick={onWalk}
-            disabled={state.dice < 1 || pending?.running === true}
-            className="sr-only"
-            aria-label={t("擲骰")}
-            data-testid="roll-move"
-          >
-            GO
-          </button>
-        </div>
+      {/* 主選單 (Sky 2026-10-23): one bar along the bottom, in thumb reach; the GO stone sits just above it. */}
+      <footer className="pointer-events-none relative z-30 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1">
+        {/* GO is carved into the middle stone (tap it); this button is for keyboards and screen readers. */}
+        <button
+          type="button"
+          onClick={onWalk}
+          disabled={state.dice < 1 || pending?.running === true}
+          className="sr-only"
+          aria-label={t("擲骰")}
+          data-testid="roll-move"
+        >
+          GO
+        </button>
+        {lockNote ? (
+          <p className="absolute inset-x-0 -top-9 mx-auto w-fit rounded-full bg-black/70 px-4 py-1.5 text-sm font-black text-white" role="status" data-testid="lock-note">
+            {lockNote}
+          </p>
+        ) : null}
+        <nav className="pointer-events-auto mx-auto flex max-w-md items-end justify-between rounded-[22px] border-2 border-[#FBD000]/80 bg-[#1E1446]/80 px-1 pb-1 pt-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.4)] backdrop-blur-sm" data-testid="main-menu">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={item.onClick}
+              disabled={pending?.running === true}
+              className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-0.5 active:scale-90 disabled:cursor-default"
+              aria-label={t(item.label)}
+              data-testid={item.testId}
+            >
+              <img
+                src={item.icon}
+                alt=""
+                draggable={false}
+                className={cn("size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", item.glow && "animate-[icon-glow_1.8s_ease-in-out_infinite]", item.locked && "opacity-50 grayscale")}
+              />
+              <span className="text-[11px] font-black leading-none text-white">{t(item.label)}</span>
+              {item.locked ? (
+                <span className="absolute right-1 top-0 rounded-full bg-black/75 px-1.5 text-[10px] font-black text-white">🔒Lv{item.locked}</span>
+              ) : item.badge ? (
+                <span className="absolute right-2 top-0 text-sm">❗</span>
+              ) : null}
+              {item.tip ? <TipHand className="-top-11 left-1/2 -translate-x-1/2" /> : null}
+            </button>
+          ))}
+        </nav>
       </footer>
 
       {intro ? <AttackIntro rivalFace={state.rivalFace} /> : null}

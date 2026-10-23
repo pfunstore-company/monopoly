@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { FIRST_ISLE_QUESTS, NO_ISLES, buyIsle, claimFirst, islePrice, parseIsles, questsDone, type Progress } from "./isles";
 
-const all: Progress = { rolls: 999, city: 999, tables: 9, feeds: 99 };
+const all: Progress = { level: 99, rolls: 9999, city: 999, tables: 99, feeds: 999, dragon: 4 };
 describe("領地嘅島", () => {
   it("first island: free, but only once its 成就 are done", () => {
     const half: Progress = { ...all, tables: FIRST_ISLE_QUESTS.find((q) => q.id === "tables")!.goal - 1 };
@@ -24,7 +24,7 @@ describe("領地嘅島", () => {
     assert.equal(buyIsle(r.isles, ids, 0, 9e9).isles.owned.length, 2, "the first is never bought");
   });
   it("reads saves safely", () => {
-    assert.deepEqual(parseIsles({ owned: ["a", 3], tables: -1, feeds: 2.7 }), { owned: ["a"], tables: 0, feeds: 2 });
+    assert.deepEqual(parseIsles({ owned: ["a", 3], tables: -1, feeds: 2.7 }), { owned: ["a"], tables: 0, feeds: 2, lv: -1 });
     assert.deepEqual(parseIsles(null), NO_ISLES);
   });
 });

@@ -8,6 +8,7 @@ import { perkLine, type HeroId } from "@/lib/heroes";
 import { SPECIAL_CARDS, SPECIALS_IN, SSR_CARDS, isUr, type Special } from "@/lib/eight";
 import { SPECIALS, TESTING } from "@/lib/shop";
 import { ISLANDS } from "@/lib/islands";
+import { STAGE_NAMES } from "@/lib/pet";
 import { isleProgress, loadCollection, loadIsles, loadNestLevel, loadPet, loadWallet, saveCollection, saveIsles, saveWallet } from "@/components/wallet-store";
 import { FIRST_ISLE_QUESTS, claimFirst, questsDone, type Isles, type Progress } from "@/lib/isles";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
@@ -328,8 +329,8 @@ function RealmEditor({
                   <span className="relative h-2.5 w-16 overflow-hidden rounded-full bg-[#E3E9F3]">
                     <span className="absolute inset-y-0 left-0 rounded-full bg-[#22A447]" style={{ width: `${(have / q.goal) * 100}%` }} />
                   </span>
-                  <span className="w-12 text-right tabular-nums">
-                    {have}/{q.goal}
+                  <span className="w-16 text-right tabular-nums">
+                    {q.id === "dragon" ? `${STAGE_NAMES[have] === "龍蛋" ? t("龍蛋") : STAGE_NAMES[have]}/${STAGE_NAMES[q.goal]}` : q.id === "level" ? `Lv${have}/${q.goal}` : `${have}/${q.goal}`}
                   </span>
                 </div>
               );

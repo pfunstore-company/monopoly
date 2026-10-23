@@ -3,6 +3,7 @@
  * these two functions are the only place that has to change.
  */
 import { STORAGE_KEY } from "@/lib/game";
+import { levelOf, xpOf, type XpFrom } from "@/lib/level";
 import { ISLES_KEY, NO_ISLES, parseIsles, type Isles, type Progress } from "@/lib/isles";
 import { WALLET_KEY, newWallet, parseWallet, type Wallet } from "@/lib/realm";
 import { COLLECTION_KEY, newCollection, parseCollection, type Collection } from "@/lib/shop";
@@ -138,8 +139,8 @@ export function bumpIsles(field: "tables" | "feeds"): void {
   const isles = loadIsles();
   saveIsles({ ...isles, [field]: isles[field] + 1 });
 }
-/** Where the player stands on the first island's 成就. */
-export function isleProgress(): Progress {
+/** What 等級 experience is counted from, read from the daily board's save and the island counters. */
+export function xpParts(): XpFrom {
   const state = (readSave()?.state ?? {}) as { rollCount?: number; theme?: number; levels?: number[] };
   const levels = Array.isArray(state.levels) ? state.levels.reduce((a, b) => a + (typeof b === "number" ? b : 0), 0) : 0;
   const isles = loadIsles();
@@ -150,4 +151,14 @@ export function isleProgress(): Progress {
     tables: isles.tables,
     feeds: isles.feeds,
   };
+}
+/** Your 等級 now. */
+export function playerLevel(): number {
+  return levelOf(xpOf(xpParts())).level;
+}
+/** Where the player stands on the first island's 成就. */
+export function isleProgress(): Progress {
+  const parts = xpParts();
+  const pet = (readSave()?.state as { pet?: { stage?: number } } | undefined)?.pet;
+  return { ...parts, level: levelOf(xpOf(parts)).level, dragon: typeof pet?.stage === "number" ? pet.stage : 0 };
 }

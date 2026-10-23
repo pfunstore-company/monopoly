@@ -10,7 +10,7 @@ import { StealScreen } from "@/components/steal-screen";
 import { ShopScreen } from "@/components/shop-screen";
 import { StoreScreen } from "@/components/store-screen";
 import { FakeAd } from "@/components/fake-ad";
-import { ENERGY_EVENT, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
+import { ENERGY_EVENT, bumpIsles, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
 import { ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
@@ -460,7 +460,11 @@ export function DailyGame() {
       <PetScreen
         state={state}
         onPick={(element) => dispatch({ type: "pick-pet", element })}
-        onFeed={(kind) => dispatch({ type: "feed-pet", kind })}
+        onFeed={(kind) => {
+          // Counts towards the first island's 成就 when there is food to give (the board refuses otherwise).
+          if (state.pet && (kind === 0 ? state.meat : state.juice) > 0) bumpIsles("feeds");
+          dispatch({ type: "feed-pet", kind });
+        }}
         onClose={() => setPetOpen(false)}
       />
     );

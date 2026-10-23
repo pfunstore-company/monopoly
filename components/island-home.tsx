@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { NestDragon } from "@/components/nest-dragon";
 import { loadPet } from "@/components/wallet-store";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
+import { islePrice } from "@/lib/isles";
+import { ENERGY_ICON, formatEnergy } from "@/lib/energy";
 
 const SHOW_SPOTS = false;
 /** The board stones float 0.8 world units up (39 picture pixels seen from the camera) and are 84 pixels across. */
@@ -216,6 +218,10 @@ export function IslandHome() {
         <section className="flex h-full w-full shrink-0 snap-center flex-col items-center justify-center gap-3 px-6 text-center text-white" data-testid="island-next">
           <img src="/art/islands/space.webp" alt="" draggable={false} className="max-h-[55%] opacity-30 brightness-0 invert-[0.35]" />
           <p className="text-lg font-black">{t("下一個島")}</p>
+          {/* Sky 2026-10-23: from the second island on, islands are bought with 能量. */}
+          <p className="flex items-center gap-1 rounded-full bg-[#1E3A8A]/80 px-3 py-1 text-base font-black" data-testid="island-price">
+            <img src={ENERGY_ICON} alt={t("能量")} className="size-5" /> {formatEnergy(islePrice(ISLANDS.length))}
+          </p>
           <p className="rounded-full bg-white/20 px-3 py-0.5 text-sm font-bold">{t("即將推出")}</p>
         </section>
       </div>

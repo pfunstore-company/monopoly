@@ -38,7 +38,7 @@ import { LAND_TAX, hostReport, type Realm } from "@/lib/realm";
 import { SPECIALS, addSpecial, heroLevel, owns, randomSpecial, type SpecialId } from "@/lib/shop";
 import { perkLine, type HeroId } from "@/lib/heroes";
 import { LevelBadge } from "@/components/hero-sheet";
-import { loadCollection, saveCollection } from "@/components/wallet-store";
+import { bumpIsles, loadCollection, saveCollection } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
 import { setTrack } from "@/lib/music";
 import { play } from "@/lib/sfx";
@@ -896,6 +896,7 @@ export function EightBoard({
       if (sceneRef.current !== scene) return;
       if (next.phase === "over") {
         track("game_end", { players: next.seats.length, place: standings(next).indexOf(0) + 1 });
+        bumpIsles("tables");
         scene.hideDice();
         scene.focus(null);
         // The winner gets a show before the results come up.

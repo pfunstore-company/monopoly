@@ -3,6 +3,7 @@
  * these two functions are the only place that has to change.
  */
 import { STORAGE_KEY } from "@/lib/game";
+import { ISLES_KEY, NO_ISLES, parseIsles, type Isles, type Progress } from "@/lib/isles";
 import { WALLET_KEY, newWallet, parseWallet, type Wallet } from "@/lib/realm";
 import { COLLECTION_KEY, newCollection, parseCollection, type Collection } from "@/lib/shop";
 
@@ -112,4 +113,40 @@ export function saveNestLevel(level: number): void {
   } catch {
     // Not remembered.
   }
+}
+
+// ---- 領地嘅島 (Sky 2026-10-23) ----
+
+export function loadIsles(): Isles {
+  try {
+    const raw = localStorage.getItem(ISLES_KEY);
+    return raw ? parseIsles(JSON.parse(raw)) : NO_ISLES;
+  } catch {
+    return NO_ISLES;
+  }
+}
+export function saveIsles(isles: Isles): void {
+  try {
+    localStorage.setItem(ISLES_KEY, JSON.stringify(isles));
+  } catch {
+    // Not remembered on this device.
+  }
+}
+/** Count one finished public table or one feeding towards the first island's 成就. */
+export function bumpIsles(field: "tables" | "feeds"): void {
+  const isles = loadIsles();
+  saveIsles({ ...isles, [field]: isles[field] + 1 });
+}
+/** Where the player stands on the first island's 成就. */
+export function isleProgress(): Progress {
+  const state = (readSave()?.state ?? {}) as { rollCount?: number; theme?: number; levels?: number[] };
+  const levels = Array.isArray(state.levels) ? state.levels.reduce((a, b) => a + (typeof b === "number" ? b : 0), 0) : 0;
+  const isles = loadIsles();
+  return {
+    rolls: typeof state.rollCount === "number" ? state.rollCount : 0,
+    // Each finished page counts all 25 of its levels.
+    city: (typeof state.theme === "number" ? state.theme : 0) * 25 + levels,
+    tables: isles.tables,
+    feeds: isles.feeds,
+  };
 }

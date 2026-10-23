@@ -6,9 +6,10 @@ import { EightBoard, seatsFor, useHeroLevels } from "@/components/table-game";
 import { LevelBadge } from "@/components/hero-sheet";
 import { perkLine, type HeroId } from "@/lib/heroes";
 import { SPECIAL_CARDS, SPECIALS_IN, SSR_CARDS, isUr, type Special } from "@/lib/eight";
-import { SPECIALS } from "@/lib/shop";
+import { SPECIALS, TESTING } from "@/lib/shop";
 import { ISLANDS } from "@/lib/islands";
-import { loadCollection, loadNestLevel, loadPet, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
+import { isleProgress, loadCollection, loadIsles, loadNestLevel, loadPet, loadWallet, saveCollection, saveIsles, saveWallet } from "@/components/wallet-store";
+import { FIRST_ISLE_QUESTS, claimFirst, questsDone, type Isles, type Progress } from "@/lib/isles";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
@@ -296,22 +297,73 @@ function RealmEditor({
 }) {
   const { t } = useLang();
   const [setup, setSetup] = useState(false);
+  // 領地嘅島 (Sky 2026-10-23): the first island is earned with 成就. While testing it plays even before that.
+  const [isles, setIsles] = useState<Isles | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setIsles(loadIsles());
+      setProgress(isleProgress());
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  const first = ISLANDS[0].id;
+  const owned = !!isles?.owned.includes(first);
+  const locked = !!isles && !owned && !TESTING;
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
       <div className="relative min-h-0 flex-1">
         <IslandHome />
       </div>
       <div className="mx-auto w-full max-w-xl shrink-0 px-6 pt-1 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+        {isles && progress && !owned ? (
+          <div className="mb-2 space-y-1 rounded-2xl border-[3px] border-[#FBD000] bg-white/95 p-2.5" data-testid="isle-quests">
+            <p className="text-center text-sm font-black">{t("成就：免費領取「{name}」", { name: t(ISLANDS[0].name) })}</p>
+            {FIRST_ISLE_QUESTS.map((q) => {
+              const have = Math.min(q.goal, progress[q.id]);
+              return (
+                <div key={q.id} className="flex items-center gap-2 text-xs font-black">
+                  <span className="w-4 text-center">{have >= q.goal ? "✅" : "▫️"}</span>
+                  <span className="min-w-0 flex-1 truncate">{t(q.text, { n: q.goal })}</span>
+                  <span className="relative h-2.5 w-16 overflow-hidden rounded-full bg-[#E3E9F3]">
+                    <span className="absolute inset-y-0 left-0 rounded-full bg-[#22A447]" style={{ width: `${(have / q.goal) * 100}%` }} />
+                  </span>
+                  <span className="w-12 text-right tabular-nums">
+                    {have}/{q.goal}
+                  </span>
+                </div>
+              );
+            })}
+            {questsDone(progress) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  play("coin");
+                  const next = claimFirst(isles, first, progress);
+                  saveIsles(next);
+                  setIsles(next);
+                }}
+                className="mt-1 h-10 w-full cursor-pointer rounded-full bg-[#22A447] font-black text-white"
+                data-testid="isle-claim"
+              >
+                {t("領取島嶼")}
+              </button>
+            ) : TESTING ? (
+              <p className="text-center text-[10px] font-bold text-[#64748B]">{t("測試期：未完成成就都可以開局")}</p>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
+          disabled={locked}
           onClick={() => {
             play("coin");
             setSetup(true);
           }}
-          className="h-12 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-lg font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1"
+          className="h-12 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-lg font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50"
           data-testid="host"
         >
-          {t("開局")}
+          {locked ? t("完成成就先可以開局") : t("開局")}
         </button>
       </div>
       {setup ? (

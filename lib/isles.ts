@@ -27,6 +27,10 @@ export const FIRST_ISLE_QUESTS: readonly Quest[] = [
   { id: "dragon", text: "龍升到 R 級", goal: 2 },
 ];
 
+/** 島主好處 (Sky 2026-10-23): hosting a game on these islands, the host's rent (租金屋 and 地主關卡) is this much more. */
+export const ISLE_HOST_BONUS: Record<string, number> = { dragon: 1.2 };
+export const hostBonusOf = (isle?: string): number => (isle && ISLE_HOST_BONUS[isle]) || 1;
+
 /** 能量 for the 2nd, 3rd, 4th … island: 3,500,000, then half as much again each time. */
 export function islePrice(index: number): number {
   if (index <= 0) return 0;

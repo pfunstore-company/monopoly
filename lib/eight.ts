@@ -480,6 +480,8 @@ export type TableRules = {
   toll?: number;
   /** 公平模式 (Sky 2026-10-21): every character plays at Lv1. */
   fair?: boolean;
+  /** 島主好處 (巨龍天空城, Sky 2026-10-23): what the host collects (租金屋, 地主關卡) × this, e.g. 1.2. */
+  hostBonus?: number;
 };
 
 export const RENT_CAP = 6;
@@ -528,7 +530,7 @@ export function newTable(
   );
   const clover = board === "clover";
   return {
-    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS, ...(rules.toll ? { toll: rules.toll } : {}), ...(rules.fair ? { fair: true } : {}) },
+    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS, ...(rules.toll ? { toll: rules.toll } : {}), ...(rules.fair ? { fair: true } : {}), ...(rules.hostBonus && rules.hostBonus > 1 ? { hostBonus: Math.min(2, rules.hostBonus) } : {}) },
     board,
     hostIncome: 0,
     // 三葉草 has no land to buy, so no power cards either: it's all about the materials.
@@ -734,9 +736,10 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       const house = state.rules.houses[key];
       if (house !== undefined) {
         // The host's rent house: pay the host, never for sale.
-        const paid = Math.min(house, player.cash);
+        const due = money(house * (state.rules.hostBonus ?? 1));
+        const paid = Math.min(due, player.cash);
         events.push({ kind: "house", seat, key, amount: paid });
-        const next = pay(state, seat, house, null, events);
+        const next = pay(state, seat, due, null, events);
         return { ...next, hostIncome: next.hostIncome + paid };
       }
       const deed = state.deeds[key];
@@ -897,7 +900,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       return { ...withSeat(state, seat, { stock: addMaterial(stock, material, -1) }), hostStock: addMaterial(state.hostStock, material, 1) };
     }
     case "toll": {
-      const toll = state.rules.toll ?? TOLL;
+      const toll = money((state.rules.toll ?? TOLL) * (state.rules.hostBonus ?? 1));
       const paid = Math.min(toll, player.cash);
       events.push({ kind: "toll", seat, amount: paid });
       const next = pay(state, seat, toll, null, events);

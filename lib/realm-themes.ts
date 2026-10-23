@@ -7,11 +7,11 @@
  */
 
 /** Things that already stand on the sleeping land and colour back in when it wakes. */
-export type PropKind = "pine" | "round" | "rock" | "crystal" | "gold" | "reed";
+export type PropKind = "pine" | "round" | "rock" | "crystal" | "gold" | "reed" | "lavaRock" | "pillar" | "cloudStone";
 /** 成套奇觀: what one owner's whole area turns into. */
-export type MarvelKind = "worldTree" | "goldMine" | "waterfall";
+export type MarvelKind = "worldTree" | "goldMine" | "waterfall" | "volcanoNest" | "goldTemple" | "stormBridge";
 /** 中間地標: how the middle grows with the whole board's levels. */
-export type LandmarkKind = "fountain" | "bigFountain" | "clockTower" | "ferrisWheel";
+export type LandmarkKind = "fountain" | "bigFountain" | "clockTower" | "ferrisWheel" | "eggStatue" | "dragonStatue" | "dragonTower" | "skyDragon";
 
 export type ThemeZone = {
   name: string;
@@ -42,6 +42,10 @@ export type Theme = {
   landmark: { at: number; kind: LandmarkKind; name: string }[];
   /** 3D models (Meshy, Sky 2026-10-18) for props and marvels; anything missing is drawn in code. */
   models?: Record<string, string>;
+  /** What is round the island: deep space (default) or a sea of clouds under a day sky. */
+  sky?: "space" | "clouds";
+  /** How tall the owner's building stands at each level (world units; index 0 unused). */
+  towerTall?: number[];
   /** 皮膚位 (reserved for the shop, Sky 2026-10-18: no shop UI yet): which skin each slot uses. */
   slots: { landmark: string; tile: string; dice: string; building: string };
 };
@@ -106,7 +110,72 @@ export const SPACE_ISLE: Theme = {
   },
 };
 
-export const THEMES: Record<string, Theme> = { space: SPACE_ISLE };
+/**
+ * Theme #2 巨龍天空城 (Sky 2026-10-23, his drawings made 3D): the dragons' city above a sea of clouds — volcano dragon
+ * nest (left), golden temple (back), storm bridge (right). The middle grows from a dragon-egg statue to a real dragon
+ * flying round the island. Fire, lightning and glow are code, not paint.
+ */
+export const DRAGON_ISLE: Theme = {
+  id: "dragon",
+  name: "巨龍天空城",
+  zones: [
+    {
+      name: "火山龍巢",
+      ground: [0x5a4a4f, 0x4d3f45, 0x6b5352, 0x7a4a3a],
+      props: [["lavaRock", 5], ["rock", 2]],
+      marvel: "volcanoNest",
+      marvelName: "火山龍巢",
+    },
+    {
+      name: "黃金神殿",
+      ground: [0x8fbf5a, 0x7fb04f, 0x9cc866, 0xd9c79a],
+      props: [["pillar", 3], ["pine", 3], ["round", 1]],
+      marvel: "goldTemple",
+      marvelName: "黃金神殿",
+    },
+    {
+      name: "雷雲浮橋",
+      ground: [0x9aa6c4, 0x8996b5, 0xadb8d2, 0x7f8cab],
+      props: [["cloudStone", 4], ["rock", 2]],
+      marvel: "stormBridge",
+      marvelName: "雷雲浮橋",
+    },
+  ],
+  middle: { ground: [0xe9dfc9, 0xdcd1b8, 0xf2e9d6, 0x9cc866], props: [["pine", 1], ["round", 1]] },
+  rock: 0x6f6a7c,
+  road: 0xffd36b,
+  fog: { colour: 0xffffff, opacity: 0.5 },
+  light: { asleep: 0.6, awake: 1.05 },
+  landmark: [
+    { at: 3, kind: "eggStatue", name: "龍蛋石像" },
+    { at: 9, kind: "dragonStatue", name: "巨龍石像" },
+    { at: 18, kind: "dragonTower", name: "龍王塔" },
+    { at: 30, kind: "skyDragon", name: "真龍盤旋" },
+  ],
+  sky: "clouds",
+  towerTall: [0, 0.75, 0.78, 1.0, 1.0],
+  slots: { landmark: "dragon", tile: "basic", dice: "basic", building: "dragon" },
+  models: {
+    pine: "/models/realm/pine.glb",
+    round: "/models/realm/round.glb",
+    lavaRock: "/models/dragon/lavarock.glb",
+    pillar: "/models/dragon/pillar.glb",
+    cloudStone: "/models/dragon/cloudstone.glb",
+    volcanoNest: "/models/dragon/volcano.glb",
+    goldTemple: "/models/dragon/temple.glb",
+    stormBridge: "/models/dragon/bridge.glb",
+    tower1: "/models/dragon/build1.glb",
+    tower2: "/models/dragon/build2.glb",
+    tower3: "/models/dragon/build3.glb",
+    tower4: "/models/dragon/build4.glb",
+    eggStatue: "/models/dragon/eggstatue.glb",
+    dragonStatue: "/models/dragon/statue.glb",
+    dragonTower: "/models/dragon/tower.glb",
+    skyDragon: "/models/dragon/flydragon.glb",
+  },
+};
+
+export const THEMES: Record<string, Theme> = { space: SPACE_ISLE, dragon: DRAGON_ISLE };
 export const themeOf = (id?: string): Theme | undefined => (id ? THEMES[id] : undefined);
 
 /** Which landmark stage a board with this many levels has reached (0 = none yet). */

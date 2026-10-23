@@ -5,10 +5,12 @@ import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
 import { NestDragon } from "@/components/nest-dragon";
-import { loadPet } from "@/components/wallet-store";
+import { loadIsles, loadPet, loadWallet, saveIsles, saveWallet } from "@/components/wallet-store";
+import { play } from "@/lib/sfx";
+import { TESTING } from "@/lib/shop";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
-import { islePrice } from "@/lib/isles";
-import { ENERGY_ICON, formatEnergy } from "@/lib/energy";
+import { buyIsle, hostBonusOf, islePrice, type Isles } from "@/lib/isles";
+import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { track } from "@/lib/analytics";
 
 const SHOW_SPOTS = false;
@@ -92,7 +94,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           src={island.art}
           alt=""
           draggable={false}
-          className="absolute inset-0 h-full w-full select-none"
+          className={cn("absolute inset-0 h-full w-full select-none", island.scene && "[mask-image:radial-gradient(ellipse_at_center,#000_55%,transparent_78%)]")}
           onError={(e: { currentTarget: HTMLImageElement }) => {
             // One more try (a dropped download leaves the island blank); note it so we can see it happen.
             const img = e.currentTarget;
@@ -213,6 +215,15 @@ export function IslandHome() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState(false);
   const pages = ISLANDS.length + 1;
+  const [isles, setIsles] = useState<Isles | null>(null);
+  const [energy, setEnergy] = useState(0);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setIsles(loadIsles());
+      setEnergy(tableEnergy(loadWallet().points));
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const go = (n: number) => strip.current?.scrollTo({ left: n * strip.current.clientWidth, behavior: "smooth" });
 
   return (
@@ -222,14 +233,53 @@ export function IslandHome() {
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={(e: { currentTarget: HTMLDivElement }) => setPage(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
       >
-        {ISLANDS.map((island) => (
-          <section key={island.id} className="relative flex h-full w-full shrink-0 snap-center flex-col overflow-hidden px-2 pb-1">
-            <p className="mx-auto mt-1 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A]/80 px-4 py-0.5 text-sm font-black text-white shadow">{t(island.name)}</p>
-            <div className="min-h-0 flex-1">
-              <Island island={island} editing={editing} />
-            </div>
-          </section>
-        ))}
+        {ISLANDS.map((island, index) => {
+          const owned = index === 0 || !!isles?.owned.includes(island.id);
+          const price = islePrice(index);
+          const canBuy = index > 0 && !owned && !!isles?.owned.includes(ISLANDS[index - 1].id) && energy >= price;
+          return (
+            <section key={island.id} className="relative flex h-full w-full shrink-0 snap-center flex-col overflow-hidden px-2 pb-1" data-testid={`isle-page-${island.id}`}>
+              {/* A whole-scene island (巨龍天空城) brings its own sky. */}
+              {island.scene ? <img src="/art/sky-dragon.webp" alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-cover" /> : null}
+              <p className="relative z-10 mx-auto mt-1 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A]/80 px-4 py-0.5 text-sm font-black text-white shadow">{t(island.name)}</p>
+              <div className="relative min-h-0 flex-1">
+                <Island island={island} editing={editing} />
+              </div>
+              {index > 0 && !owned ? (
+                <div className="relative z-10 mx-auto mb-1 w-full max-w-sm rounded-2xl border-[3px] border-[#FBD000] bg-white/95 p-2.5 text-center text-[#1E3A8A] shadow-xl" data-testid="isle-buy">
+                  {hostBonusOf(island.id) > 1 ? (
+                    <p className="text-sm font-black">{t("島主好處：開局收租多 {n} 成", { n: Math.round((hostBonusOf(island.id) - 1) * 10) })}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={!canBuy}
+                    onClick={() => {
+                      if (!isles) return;
+                      const r = buyIsle(isles, ISLANDS.map((i) => i.id), index, energy);
+                      if (r.isles === isles) return;
+                      play("chest");
+                      saveIsles(r.isles);
+                      setIsles(r.isles);
+                      const w = loadWallet();
+                      saveWallet({ ...w, points: r.energy / 10_000 });
+                      setEnergy(r.energy);
+                    }}
+                    className="mt-1.5 flex h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-full bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-base font-black text-white shadow-[0_4px_0_#8E1210] disabled:cursor-default disabled:opacity-50"
+                    data-testid="isle-buy-btn"
+                  >
+                    {t("買島")} <img src={ENERGY_ICON} alt={t("能量")} className="size-5" /> {formatEnergy(price)}
+                  </button>
+                  {!canBuy ? (
+                    <p className="mt-1 text-[11px] font-bold text-[#64748B]">
+                      {!isles?.owned.includes(ISLANDS[index - 1].id) ? t("先要有「{name}」", { name: t(ISLANDS[index - 1].name) }) : t("能量未夠")}
+                    </p>
+                  ) : null}
+                  {TESTING ? <p className="mt-0.5 text-[11px] font-bold text-[#64748B]">{t("測試期：未買都可以開局試玩")}</p> : null}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
         <section className="flex h-full w-full shrink-0 snap-center flex-col items-center justify-center gap-3 px-6 text-center text-white" data-testid="island-next">
           <img src="/art/islands/space.webp" alt="" draggable={false} className="max-h-[55%] opacity-30 brightness-0 invert-[0.35]" />
           <p className="text-lg font-black">{t("下一個島")}</p>

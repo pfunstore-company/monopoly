@@ -30,6 +30,8 @@ export type IslandArt = {
   squareW?: number;
   /** 3D 喚醒主題 (lib/themes, Sky 2026-10-18): no picture — the island is built in 3D and wakes as land is bought. */
   awaken?: string;
+  /** 我嘅領地: the picture is a whole scene (sky and all), shown full and soft-edged instead of floating. */
+  scene?: boolean;
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -106,6 +108,33 @@ export const ISLANDS: IslandArt[] = [
     awaken: "space",
     tiles: "painted",
     // 大富翁 ring (Sky 2026-10-19): the start at the front, 18 lots evenly round an oval.
+    squares: ringSquares(),
+    nest: { x: 476, y: 836, w: 110 },
+    falls: [],
+    spots: [],
+    decor: [],
+  },
+  // Theme #2 巨龍天空城 (Sky 2026-10-23): bought with 能量; the same ring, the dragons' world round it.
+  {
+    id: "dragon",
+    name: "巨龍天空城",
+    art: "/art/islands/dragon.webp",
+    w: 1024,
+    h: 768,
+    top: 120,
+    squareW: 60,
+    awaken: "dragon",
+    scene: true,
+    tiles: "painted",
+    // Code-made life on the picture: the volcano nest's lava and smoke, the temple's and the statue's gold.
+    glows: [
+      { x: 163, y: 122, r: 34, colour: "#ff7a1a" },
+      { x: 105, y: 238, r: 26, colour: "#ff5a10" },
+      { x: 268, y: 262, r: 22, colour: "#ff7a1a" },
+      { x: 482, y: 92, r: 44, colour: "#ffd36b" },
+      { x: 506, y: 300, r: 30, colour: "#ffe08a" },
+    ],
+    smoke: [{ x: 163, y: 100 }],
     squares: ringSquares(),
     nest: { x: 476, y: 836, w: 110 },
     falls: [],

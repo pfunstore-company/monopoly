@@ -16,7 +16,7 @@ import { createAwakenWorld, type AwakenWorld } from "@/components/awaken-world";
 import { buildMonster } from "@/components/monster";
 import { createRoamer } from "@/components/dragon-roam";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
-import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
+import { GALAXY_SPACE, SKY_CLOUDS, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
 let loading: Promise<any> | null = null;
@@ -644,7 +644,7 @@ export function createBoardScene(
   if (island) {
     // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
     // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
-    if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
+    if (!seeThrough) space = createSpace(T, scene, camera, awakenTheme?.sky === "clouds" ? { reduceMotion, picture: SKY_CLOUDS, extras: false, far: 180, meteor: false, day: true } : { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
     if (clover && !awakenTheme) {
       // Sky's painted island is the board: one picture lying on the ground, squares and all.
       const [x0, z0] = isleAt(0, 0), [x1, z1] = isleAt(CLOVER_ISLE.w, CLOVER_ISLE.h);

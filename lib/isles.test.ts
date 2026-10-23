@@ -28,3 +28,14 @@ describe("領地嘅島", () => {
     assert.deepEqual(parseIsles(null), NO_ISLES);
   });
 });
+
+describe("巨龍天空城 島主好處", () => {
+  it("hosting there pays the host 20% more", async () => {
+    const { hostBonusOf } = await import("./isles");
+    const { rulesOf, emptyRealm } = await import("./realm");
+    assert.equal(hostBonusOf("dragon"), 1.2);
+    assert.equal(hostBonusOf("space"), 1);
+    assert.equal(rulesOf({ ...emptyRealm(), isle: "dragon" }).hostBonus, 1.2);
+    assert.equal(rulesOf({ ...emptyRealm(), isle: "space" }).hostBonus, undefined);
+  });
+});

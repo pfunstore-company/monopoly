@@ -14,6 +14,7 @@
  * TEMPORARY numbers, marked 臨時 on screen: land prices, material shop prices, building recipes,
  * the rent a rent house charges and how much a station shortens a game.
  */
+import { hostBonusOf } from "@/lib/isles";
 import { CARDS, CLOVER_LAPS, RENT_CAP, TOLL, TURNS_EACH, type BoardId, type Card, type TableRules } from "@/lib/eight";
 
 // ---------- Land ----------
@@ -221,6 +222,7 @@ export function rulesOf(realm: Realm): Partial<TableRules> {
     cards: CARDS,
     toll: TOLL + count(realm, "rent"),
     ...(realm.fair ? { fair: true } : {}),
+    ...(hostBonusOf(realm.isle) > 1 ? { hostBonus: hostBonusOf(realm.isle) } : {}),
   };
 }
 

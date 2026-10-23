@@ -378,7 +378,7 @@ function RealmEditor({
             <>
               {/* Which island to play on (Sky 2026-10-17: everything open while testing). */}
               {ISLANDS.length > 1 ? <div className="grid grid-cols-2 gap-2" data-testid="isle-pick">
-                {ISLANDS.map((isle) => {
+                {ISLANDS.filter((isle, i) => TESTING || i === 0 || !!isles?.owned.includes(isle.id)).map((isle) => {
                   const on = (realm.isle ?? ISLANDS[0].id) === isle.id;
                   return (
                     <button

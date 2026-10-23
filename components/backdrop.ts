@@ -648,15 +648,18 @@ export const BOARD_SPACE: SpacePicture = { url: "/art/space.webp", w: 941, h: 16
 /** The public table's picture (its striped planet top right is cut out). */
 /** 領地 (Sky 2026-10-02): her soft purple-blue nebula with ringed planets in the corners, no separate planet. */
 export const GALAXY_SPACE: SpacePicture = { url: "/art/space-realm.webp", w: 941, h: 1672, planet: { url: "", x: 0, y: 0, px: 1, depth: 1 } };
+/** 巨龍天空城 (Sky 2026-10-23): a day sky over a sea of clouds (no stars). */
+export const SKY_CLOUDS: SpacePicture = { url: "/art/sky-dragon.webp", w: 941, h: 1672, planet: { url: "", x: 0, y: 0, px: 1, depth: 1 } };
 export const TABLE_SPACE: SpacePicture = { url: "/art/table-space.webp", w: 941, h: 1672, planet: { url: "/art/table-planet.webp", x: 792, y: 174, px: 154, depth: 1 } };
 
 export function createSpace(
   T: any,
   scene: any,
   camera: any,
-  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number; meteor?: boolean; ringed?: boolean; rocks?: boolean },
+  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number; meteor?: boolean; ringed?: boolean; rocks?: boolean; day?: boolean },
 ): Backdrop {
   const still = !!opts.reduceMotion;
+  const day = !!opts.day;
   const pic = opts.picture ?? BOARD_SPACE;
   const extras = opts.extras ?? true;
   const IMG_W = pic.w, IMG_H = pic.h, D = opts.far ?? 200;
@@ -666,8 +669,8 @@ export function createSpace(
     t.encoding = T.sRGBEncoding;
     return t;
   };
-  scene.background = new T.Color(0x1c1f5a).convertSRGBToLinear();
-  scene.fog = new T.Fog(new T.Color(0x262a70).convertSRGBToLinear(), 40, 160);
+  scene.background = new T.Color(day ? 0x7abef6 : 0x1c1f5a).convertSRGBToLinear();
+  scene.fog = new T.Fog(new T.Color(day ? 0xcfe6fb : 0x262a70).convertSRGBToLinear(), 40, 160);
   if (!camera.parent) scene.add(camera);
   const sky = new T.Group();
   camera.add(sky);
@@ -683,14 +686,14 @@ export function createSpace(
   // Twinkling stars (in picture units, -0.5…0.5 across and down).
   const dot = dotTex(T);
   const stars: { s: any; u: number; v: number; size: number; phase: number; speed: number }[] = [];
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < (day ? 0 : 70); i++) {
     const s = flat(dot, { blending: T.AdditiveBlending, color: [0xffffff, 0xcfe0ff, 0xffe6b0, 0xe6ccff][i % 4] });
     sky.add(s);
     stars.push({ s, u: Math.random() - 0.5, v: Math.random() - 0.5, size: 0.004 + Math.random() * 0.008, phase: Math.random() * 6, speed: 1 + Math.random() * 2.5 });
   }
   // Nebula glows drifting across the top.
   const glowTex = softTex(T, "rgba(255,255,255,0.9)", "rgba(255,255,255,0)");
-  const glows = [0xb07cff, 0x5fd0ff, 0xff8fd8].map((color, i) => {
+  const glows = (day ? [] : [0xb07cff, 0x5fd0ff, 0xff8fd8]).map((color, i) => {
     const s = flat(glowTex, { blending: T.AdditiveBlending, color, opacity: 0.12 });
     sky.add(s);
     return { s, u: -0.25 + i * 0.25, v: -0.36 + (i % 2) * 0.06, phase: i * 2 };
@@ -698,6 +701,7 @@ export function createSpace(
   // Shooting stars.
   const beam = beamTex(T);
   const shooting = flat(beam, { blending: T.AdditiveBlending, color: 0xdfeaff, opacity: 0 });
+  shooting.visible = !day;
   sky.add(shooting);
   const shoot = { at: 3, u: 0, v: 0, du: 0, dv: 0 };
   // The ringed planet, floating on the left.
@@ -731,6 +735,7 @@ export function createSpace(
   const dustGeo = new T.BufferGeometry();
   dustGeo.setAttribute("position", new T.BufferAttribute(pos, 3));
   const dust = new T.Points(dustGeo, new T.PointsMaterial({ size: 0.14, map: dot, color: 0xcfd8ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, fog: false }));
+  dust.visible = !day;
   scene.add(dust);
 
   let clock = 0;

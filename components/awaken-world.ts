@@ -176,9 +176,36 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     rock.scale.y = 0.7;
     const gem = new T.Mesh(new T.OctahedronGeometry(0.16), crystalMat);
     gem.position.y = 0.35;
-    g.add(rock, gem);
+    g.add(rock);
+    if (theme.sky !== "clouds") g.add(gem);
     root.add(g);
     islets.push({ g, y, phase: hash(i, 7) * 6 });
+  }
+
+  // ---------- 巨龍天空城: a sea of clouds drifting under the island ----------
+  const puffTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.55, "rgba(255,255,255,0.75)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    return new T.CanvasTexture(c);
+  })();
+  const cloudSea: { s: any; x: number; z: number; speed: number; phase: number }[] = [];
+  if (theme.sky === "clouds") {
+    for (let i = 0; i < 46; i++) {
+      const a = hash(i, 21) * Math.PI * 2, r = 2 + hash(i, 22) * 14;
+      const s = new T.Sprite(new T.SpriteMaterial({ map: puffTex, color: i % 3 ? 0xffffff : 0xe8eefc, transparent: true, opacity: 0.85, depthWrite: false }));
+      const size = 3 + hash(i, 23) * 5;
+      s.scale.set(size, size * 0.55, 1);
+      const x = centre.x + Math.cos(a) * r, z = centre.z + Math.sin(a) * r;
+      s.position.set(x, -4.2 - hash(i, 24) * 2.5, z);
+      root.add(s);
+      cloudSea.push({ s, x, z, speed: 0.15 + hash(i, 25) * 0.25, phase: hash(i, 26) * 40 });
+    }
   }
 
   // ---------- Pads (players stand on them), the plaza and the glowing road ----------
@@ -314,6 +341,15 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       mesh(new T.DodecahedronGeometry(0.18 * s, 0), rockM, 0.1 * s);
       const n = mesh(new T.OctahedronGeometry(0.09 * s), goldOre, 0.24 * s);
       n.position.x = 0.06 * s;
+    } else if (kind === "lavaRock") {
+      const m = mesh(new T.DodecahedronGeometry(0.22 * s, 0), new T.MeshStandardMaterial({ color: lin(0x3a3236), roughness: 0.95, flatShading: true, emissive: lin(0x7a2a08), emissiveIntensity: 0.35 }), 0.12 * s);
+      m.scale.set(1, 0.8 + r * 0.6, 1);
+    } else if (kind === "pillar") {
+      mesh(new T.CylinderGeometry(0.1 * s, 0.12 * s, 0.55 * s, 8), new T.MeshStandardMaterial({ color: lin(0xeee3cc), roughness: 0.6 }), 0.28 * s);
+    } else if (kind === "cloudStone") {
+      mesh(new T.DodecahedronGeometry(0.2 * s, 0), rockM, 0.2 * s);
+      const c = mesh(new T.IcosahedronGeometry(0.22 * s, 1), new T.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), 0.16 * s);
+      c.scale.set(1.4, 0.6, 1.2);
     } else {
       for (let i = 0; i < 4; i++) {
         const b = mesh(new T.CylinderGeometry(0.012, 0.018, 0.35 * s, 4), reedM, 0.17 * s);
@@ -393,12 +429,13 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     return { mm, u };
   };
   /** A copy of a loaded model standing on y = 0, centred, `height` tall. */
-  const placed = (name: string, height: number) => {
+  const placed = (name: string, height: number, width = Infinity) => {
     const src = models[name];
     if (!src) return null;
     const m = src.clone(true);
     const box = new T.Box3().setFromObject(m), size = box.getSize(new T.Vector3()), mid = box.getCenter(new T.Vector3());
-    const k = height / Math.max(0.001, size.y);
+    // As tall as asked, but never wider than `width` (the wide marvels of 巨龍天空城).
+    const k = Math.min(height / Math.max(0.001, size.y), width / Math.max(0.001, size.x, size.z));
     m.scale.setScalar(k);
     m.position.set(-mid.x * k, -box.min.y * k, -mid.z * k);
     const g = new T.Group();
@@ -409,7 +446,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     return g;
   };
   /** How tall each model stands (world units) at prop size 1. */
-  const PROP_TALL: Partial<Record<PropKind, number>> = { pine: 1.1, round: 1.0, crystal: 0.5, gold: 0.45, rock: 0.3 };
+  const PROP_TALL: Partial<Record<PropKind, number>> = { pine: 1.1, round: 1.0, crystal: 0.5, gold: 0.45, rock: 0.3, lavaRock: 0.45, pillar: 0.62, cloudStone: 0.5 };
   const useModels = () => {
     // Towers put up before the models arrived become the drawn ones.
     towers.forEach((old, i) => {
@@ -659,7 +696,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     return mm;
   };
   /** The owner's tower from Sky's drawings (shop, flats, office, skyscraper), if loaded. */
-  const TOWER_TALL = [0, 0.62, 0.95, 1.3, 1.95];
+  const TOWER_TALL = theme.towerTall ?? [0, 0.62, 0.95, 1.3, 1.95];
   const towerModel = (lv: number, colour: any) => {
     const g = placed(`tower${lv}`, TOWER_TALL[lv]);
     if (!g) return null;
@@ -747,8 +784,21 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       g.add(m);
       return m;
     };
-    const model = placed(kind, kind === "worldTree" ? 3.4 : kind === "goldMine" ? 1.9 : 1.8);
+    const SIZE: Record<MarvelKind, [number, number?]> = {
+      worldTree: [3.4], goldMine: [1.9], waterfall: [1.8],
+      volcanoNest: [2.4, 3.1], goldTemple: [2.2, 3.0], stormBridge: [2.6, 3.1],
+    };
+    const model = placed(kind, SIZE[kind][0], SIZE[kind][1]);
     if (model) g.add(model);
+    const topOf = model ? new T.Box3().setFromObject(model).max.y : 2;
+    /** A glowing dot (fire, sparks, gold dust), moved in tick by its role. */
+    const dot = (colour: number, role: string, k: number, add = true) => {
+      const f = new T.Sprite(new T.SpriteMaterial({ map: add ? o.glowTex : puffTex, color: colour, blending: add ? T.AdditiveBlending : T.NormalBlending, depthWrite: false, transparent: true }));
+      f.userData[role] = k;
+      f.userData.top = topOf;
+      g.add(f);
+      return f;
+    };
     if (kind === "worldTree") {
       if (!model) add(new T.Mesh(new T.CylinderGeometry(0.2, 0.36, 1.8, 8), trunkM), 0, 0.9, 0);
       const crownM = new T.MeshStandardMaterial({ color: lin(0x4fd36a), roughness: 0.7, flatShading: true, emissive: lin(0x1d6b2a), emissiveIntensity: 0.4 });
@@ -763,6 +813,39 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         f.userData.firefly = k;
         g.add(f);
       }
+    } else if (kind === "volcanoNest") {
+      // 火山龍巢: embers and smoke out of the nest, a hot glow pulsing in it.
+      if (!model) add(new T.Mesh(new T.ConeGeometry(1.4, 2.2, 8), new T.MeshStandardMaterial({ color: lin(0x3a3236), roughness: 0.95, flatShading: true })), 0, 1.1, 0);
+      for (let k = 0; k < 22; k++) dot(k % 3 ? 0xff7a1a : 0xffd04a, "ember", k);
+      for (let k = 0; k < 8; k++) dot(0x6b6470, "smoke", k, false).material.opacity = 0.5;
+      const heat = dot(0xff5a10, "heat", 0);
+      heat.position.set(0, topOf * 0.82, 0);
+    } else if (kind === "goldTemple") {
+      // 黃金神殿: a warm golden glow breathing over it, gold dust circling.
+      if (!model) add(new T.Mesh(new T.BoxGeometry(2, 1.4, 1.4), new T.MeshStandardMaterial({ color: lin(0xf3e6c8), roughness: 0.5 })), 0, 0.7, 0);
+      const halo = dot(0xffc83a, "heat", 1);
+      halo.position.set(0, topOf * 0.6, 0);
+      for (let k = 0; k < 14; k++) dot(0xffe27a, "dust", k);
+    } else if (kind === "stormBridge") {
+      // 雷雲浮橋: a storm cloud over it, lightning striking the towers now and then.
+      if (!model) {
+        add(new T.Mesh(new T.BoxGeometry(0.6, 2, 0.6), stoneMat), -1, 1, 0);
+        add(new T.Mesh(new T.BoxGeometry(0.6, 2, 0.6), stoneMat), 1, 1, 0);
+        add(new T.Mesh(new T.BoxGeometry(2, 0.15, 0.4), stoneMat), 0, 1.3, 0);
+      }
+      for (let k = 0; k < 7; k++) {
+        const c = dot(k % 2 ? 0x5a5f78 : 0x737a96, "storm", k, false);
+        c.material.opacity = 0.85;
+        c.scale.set(1.6, 0.8, 1);
+      }
+      const boltGeo = new T.BufferGeometry();
+      boltGeo.setAttribute("position", new T.BufferAttribute(new Float32Array(10 * 3), 3));
+      const bolt = new T.Line(boltGeo, new T.LineBasicMaterial({ color: 0xe8f4ff, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+      bolt.userData.bolt = { next: 0, until: 0 };
+      g.userData.boltTop = topOf;
+      g.add(bolt);
+      const flash = dot(0xbfdcff, "flash", 0);
+      flash.material.opacity = 0;
     } else if (kind === "goldMine") {
       if (!model) {
         add(new T.Mesh(new T.ConeGeometry(1.3, 2.1, 7), new T.MeshStandardMaterial({ color: lin(0x9a7b55), roughness: 0.95, flatShading: true })), 0, 1.05, 0);
@@ -781,7 +864,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       add(new T.Mesh(new T.BoxGeometry(0.72, 1.7, 0.05), waterM), 0, 0.85, model ? 0.62 : 0.27);
     }
     const crown = new T.Mesh(new T.TorusGeometry(0.3, 0.06, 8, 24), new T.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 0.5, roughness: 0.3 }));
-    crown.position.y = kind === "worldTree" ? 3.6 : kind === "goldMine" ? 2.6 : 2.2;
+    crown.position.y = kind === "worldTree" ? 3.6 : kind === "goldMine" ? 2.6 : kind === "waterfall" ? 2.2 : topOf + 0.45;
     crown.rotation.x = Math.PI / 2;
     g.add(crown);
     g.userData.spin = crown;
@@ -857,13 +940,43 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       }
     };
     // Sky's drawings made 3D (2026-10-20); the shapes below are the fallback while they load.
-    const LANDMARK_MODEL: Record<string, [string, number]> = { fountain: ["fountain", 0.95], bigFountain: ["bigFountain", 1.35], clockTower: ["clockTower", 2.9] };
-    const lm = LANDMARK_MODEL[kind] && placed(LANDMARK_MODEL[kind][0], LANDMARK_MODEL[kind][1]);
+    const LANDMARK_MODEL: Record<string, [string, number]> = {
+      fountain: ["fountain", 0.95], bigFountain: ["bigFountain", 1.35], clockTower: ["clockTower", 2.9],
+      // 巨龍天空城 (Sky 2026-10-23): egg statue → dragon statue → dragon tower; at the top a real dragon flies round.
+      eggStatue: ["eggStatue", 1.3], dragonStatue: ["dragonStatue", 1.8], dragonTower: ["dragonTower", 3.0], skyDragon: ["dragonTower", 3.0],
+    };
+    const dragonKind = kind === "eggStatue" || kind === "dragonStatue" || kind === "dragonTower" || kind === "skyDragon";
+    const lm = (LANDMARK_MODEL[kind] && placed(LANDMARK_MODEL[kind][0], LANDMARK_MODEL[kind][1])) || (dragonKind ? (() => {
+      const s = new T.Group();
+      const h = kind === "eggStatue" ? 1.1 : kind === "dragonStatue" ? 1.6 : 2.8;
+      const body = new T.Mesh(new T.CylinderGeometry(0.35, 0.6, h, 10), stone);
+      body.position.y = h / 2;
+      s.add(body);
+      return s;
+    })() : null);
     const stand = kind === "ferrisWheel" ? placed("wheelStand", 2.5) : null;
     const wheelModel = stand ? placed("wheel", 2.4) : null;
     if (lm) {
       g.add(lm);
-      if (kind !== "clockTower") drops(kind === "fountain" ? 1.05 : 1.5);
+      if (dragonKind) {
+        // A glow in the statue's eyes / round its top, and at the last stage the dragon itself, circling the island.
+        const glow = new T.Sprite(new T.SpriteMaterial({ map: o.glowTex, color: 0xffc83a, blending: T.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.6 }));
+        const top = new T.Box3().setFromObject(lm).max.y;
+        glow.position.y = top * 0.85;
+        glow.scale.set(1.4, 1.4, 1);
+        glow.userData.halo = true;
+        g.add(glow);
+        if (kind === "skyDragon") {
+          const fly = placed("skyDragon", 9, 2.8);
+          if (fly) {
+            const holder = new T.Group();
+            holder.add(fly);
+            fly.rotation.y = Math.PI / 2; // the model faces +x; it flies along its path
+            g.add(holder);
+            g.userData.flyer = holder;
+          }
+        }
+      } else if (kind !== "clockTower") drops(kind === "fountain" ? 1.05 : 1.5);
       else {
         // The clock face is painted on the model (front, about halfway up); real hands go over it so they turn.
         const H = 2.9, k = H / 1.9;
@@ -1000,12 +1113,60 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         f.s.position.y = f.y + Math.sin(now / 2200 + f.phase) * 0.05;
       }
       for (const it of islets) it.g.position.y = it.y + Math.sin(now / 1800 + it.phase) * 0.18;
+      for (const c of cloudSea) c.s.position.x = c.x + Math.sin(now / 9000 + c.phase) * 1.2 + ((now / 1000) * c.speed + c.phase) % 6 - 3;
       roadMat.opacity = 0.45 + Math.sin(now / 900) * 0.12;
       crystalMat.emissiveIntensity = 0.5 + Math.sin(now / 700) * 0.25;
       waterTex.offset.y = (now / 1400) % 1;
       for (const g of marvels) {
         if (!g) continue;
         g.userData.spin.rotation.z = now / 600;
+        g.children.forEach((c: any) => {
+          const u = c.userData;
+          if (u.ember !== undefined) {
+            const k = ((now / 1700 + u.ember / 22) % 1), a = u.ember * 2.39;
+            c.position.set(Math.cos(a) * (0.15 + k * 0.5), u.top * 0.85 + k * 1.8, Math.sin(a) * (0.15 + k * 0.5));
+            const sz = 0.22 * (1 - k) + 0.04;
+            c.scale.set(sz, sz, 1);
+            c.material.opacity = 1 - k;
+          } else if (u.smoke !== undefined) {
+            const k = ((now / 4200 + u.smoke / 8) % 1);
+            c.position.set(Math.sin(u.smoke * 1.7) * 0.3 + k * 0.6, u.top * 0.9 + 0.3 + k * 2.4, Math.cos(u.smoke * 1.7) * 0.3);
+            const sz = 0.5 + k * 1.3;
+            c.scale.set(sz, sz, 1);
+            c.material.opacity = 0.45 * (1 - k);
+          } else if (u.heat !== undefined) {
+            const sz = (u.heat ? 3.2 : 1.6) * (1 + Math.sin(now / 380 + u.heat) * 0.12);
+            c.scale.set(sz, sz, 1);
+            c.material.opacity = u.heat ? 0.35 + Math.sin(now / 900) * 0.12 : 0.75 + Math.sin(now / 160) * 0.2;
+          } else if (u.dust !== undefined) {
+            const a = now / 1600 + u.dust * 0.45;
+            c.position.set(Math.cos(a) * 1.5, u.top * 0.4 + Math.sin(a * 1.3 + u.dust) * 0.6 + 0.6, Math.sin(a) * 1.1);
+            c.scale.set(0.12, 0.12, 1);
+          } else if (u.storm !== undefined) {
+            c.position.set((u.storm - 3) * 0.45 + Math.sin(now / 2000 + u.storm) * 0.1, u.top + 0.9 + (u.storm % 2) * 0.25, Math.cos(u.storm * 2.1) * 0.35);
+          } else if (u.bolt) {
+            const b = u.bolt;
+            if (now > b.next) {
+              // A new strike: a jagged line from the cloud down to one of the towers.
+              const pos = c.geometry.attributes.position, x0 = (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 0.4);
+              const top = g.userData.boltTop ?? 2.6;
+              for (let i = 0; i < 10; i++) {
+                const f = i / 9;
+                pos.setXYZ(i, x0 * (0.2 + f * 0.8) + (i && i < 9 ? (Math.random() - 0.5) * 0.35 : 0), top + 1.1 - f * 1.6, (Math.random() - 0.5) * 0.2);
+              }
+              pos.needsUpdate = true;
+              b.until = now + 260;
+              b.next = now + 1800 + Math.random() * 2600;
+            }
+            c.material.opacity = now < b.until ? (Math.floor((b.until - now) / 60) % 2 ? 1 : 0.3) : 0;
+          } else if (u.flash !== undefined) {
+            const bolt = g.children.find((x: any) => x.userData.bolt);
+            const on = bolt && now < bolt.userData.bolt.until;
+            c.position.set(0, u.top + 0.6, 0);
+            c.scale.set(4, 3, 1);
+            c.material.opacity = on ? 0.55 : 0;
+          }
+        });
         g.children.forEach((c: any) => {
           if (c.userData.firefly === undefined) return;
           const a = now / 900 + c.userData.firefly;
@@ -1019,6 +1180,17 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         w.children.forEach((c: any) => c.userData.cab && (c.rotation.z = -w.rotation.z));
       }
       if (m?.userData.hand) m.userData.hand.rotation.z = -now / 800;
+      m?.children.forEach((c: any) => c.userData.halo && (c.material.opacity = 0.45 + Math.sin(now / 700) * 0.2));
+      if (m?.userData.flyer) {
+        // 真龍盤旋: round the island, rising and dipping, banking into the turn, wings beating (a squash in time).
+        const f = m.userData.flyer, a = now / 5200;
+        const rx = 6.2, rz = 5.4;
+        f.position.set(Math.cos(a) * rx, 3.4 + Math.sin(a * 2.3) * 0.6, Math.sin(a) * rz);
+        f.rotation.order = "YXZ";
+        f.rotation.set(0, -a - Math.PI / 2, 0.35);
+        const beat = Math.sin(now / 160);
+        f.scale.set(1, 1 + beat * 0.08, 1 - Math.abs(beat) * 0.04);
+      }
       if (m?.userData.hourHand) m.userData.hourHand.rotation.z = -now / 9600;
       m?.children.forEach((c: any) => {
         if (c.userData.drop === undefined) return;

@@ -672,8 +672,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // The front reach is the corner at full zoom-in (the closest the board ever comes), plus its breathing.
     const e = BOARD_ELEV, front = (R + 0.9) * ZOOM_IN, up = (TOP + AIM_DROP + 0.3) * ZOOM_IN;
     const frontNdc = (-front * Math.sin(e) + up * Math.cos(e)) / ((fitDist - front * Math.cos(e) - up * Math.sin(e)) * tanHalf);
-    // Keep clear of the bottom bar (the building button), about 100 px.
-    const bottomNdc = -1 + (2 * 100) / h;
+    // Keep clear of the bottom menu bar (Sky 2026-10-23: GO a little higher, off the bar), about 160 px.
+    const bottomNdc = -1 + (2 * 160) / h;
     const goHalf = (GO_SIZE * 0.5 * Math.sin(e) + 0.5) / halfH;
     const goNdc = Math.max(bottomNdc + goHalf * 0.6, Math.min(frontNdc - goHalf - 0.04, (frontNdc + bottomNdc) / 2));
     goStone.position.set(0, goNdc * halfH - TOP, -fitDist);

@@ -102,7 +102,7 @@ function ringSquares(): At[] {
 /** 群島浮橋 preview (Sky 2026-10-23: show him before it goes live): only with ?arch in the address for now. */
 export const ARCH_PREVIEW = typeof window !== "undefined" && /[?&]arch\b/.test(window.location.search);
 function archSquares(): At[] {
-  const halfW = 5.0, halfD = 5.8, cz = 0.2;
+  const halfW = 4.7, halfD = 5.5, cz = 0.2;
   const zones = [
     [40, 112],
     [146, 214],

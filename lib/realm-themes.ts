@@ -166,7 +166,7 @@ export const DRAGON_ISLE: Theme = {
     king: "isleKing",
     start: "isleStart",
     bridge: "isleBridge",
-    top: { isleVolcano: 0.29, isleTemple: 0.255, isleStorm: 0.33, isleKing: 0.337, isleStart: 0.497, isleBridge: 0.2 },
+    top: { isleVolcano: 0.29, isleTemple: 0.255, isleStorm: 0.43, isleKing: 0.337, isleStart: 0.497, isleBridge: 0.2 },
   },
   slots: { landmark: "dragon", tile: "basic", dice: "basic", building: "dragon" },
   models: {

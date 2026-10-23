@@ -534,7 +534,8 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       const a = six[0], b = six[5];
       const out = new T.Vector3(c.x - centre.x, 0, c.z - centre.z).normalize();
       const at = c.clone().addScaledVector(out, 1.15);
-      layIsland(arch.zones[z], at, [b.x - a.x, b.z - a.z], a.distanceTo(b) + 3.2, isleWake[z]);
+      // The volcano island is nearly as deep as it is long, so a little shorter keeps it off its neighbours.
+      layIsland(arch.zones[z], at, [b.x - a.x, b.z - a.z], a.distanceTo(b) + (z === 0 ? 2.2 : 3.0), isleWake[z]);
       isleWake[z].forEach((u) => (u.value = zoneWake(z)));
     }
     layIsland(arch.king, middleAt.clone().setZ(centre.z), null, 5.0, isleWake[3]);

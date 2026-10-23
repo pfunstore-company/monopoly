@@ -407,6 +407,21 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
 }
 
 /* 領地 islands (Sky 2026-10-09): the island floats, its waterfalls run, foam bubbles at the foot. */
+/* 巨龍天空城 (Sky 2026-10-23): the dragon flies round the island on 我嘅領地 — big across the front (left → right),
+   then turns and goes back small across the top (right → left), bobbing as its wings beat. */
+@keyframes dragon-orbit {
+  0% { transform: translate(-30%, 220%) scale(1) rotate(-6deg); opacity: 1; }
+  12% { transform: translate(60%, 250%) scale(1.08) rotate(2deg); }
+  25% { transform: translate(150%, 235%) scale(1) rotate(-4deg); }
+  38% { transform: translate(250%, 170%) scale(0.85) rotate(-14deg); opacity: 1; }
+  45% { transform: translate(280%, 100%) scale(-0.6, 0.6) rotate(8deg); opacity: 0.9; }
+  60% { transform: translate(190%, 0%) scale(-0.55, 0.55) rotate(4deg); opacity: 0.85; }
+  75% { transform: translate(90%, -10%) scale(-0.55, 0.55) rotate(-2deg); opacity: 0.85; }
+  88% { transform: translate(-20%, 60%) scale(-0.7, 0.7) rotate(-10deg); opacity: 0.9; }
+  94% { transform: translate(-45%, 150%) scale(0.85) rotate(-12deg); }
+  100% { transform: translate(-30%, 220%) scale(1) rotate(-6deg); opacity: 1; }
+}
+
 @keyframes isle-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }

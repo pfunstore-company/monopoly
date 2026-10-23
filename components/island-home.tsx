@@ -137,6 +137,16 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             style={{ left: pct(p.x, island.w), top: pct(p.y - p.w / 2, island.h), width: pct(p.w, island.w), animationDuration: `${p.dur}s`, animationDelay: `-${p.delay}s`, ["--dx" as string]: p.grey ? "12px" : "4px", ["--puff" as string]: p.grey ? "0.6" : "0.45" }}
           />
         ))}
+        {/* 真龍 (巨龍天空城): flies round the island — across the front, then small and far across the back. */}
+        {island.flyer ? (
+          <img
+            src={island.flyer}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute left-0 top-0 z-20 w-[30%] select-none drop-shadow-[0_10px_8px_rgba(0,0,0,0.35)] animate-[dragon-orbit_16s_linear_infinite]"
+            data-testid="isle-flyer"
+          />
+        ) : null}
         {(island.glows ?? []).map((g, i) => (
           <span
             key={`gl${i}`}

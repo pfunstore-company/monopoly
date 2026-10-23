@@ -32,6 +32,8 @@ export type IslandArt = {
   awaken?: string;
   /** 我嘅領地: the picture is a whole scene (sky and all), shown full and soft-edged instead of floating. */
   scene?: boolean;
+  /** 我嘅領地: a creature picture (facing right) that flies round the island. */
+  flyer?: string;
   /** Squares painted into the picture (players stand on them), or floating stones laid over it. */
   tiles: "painted" | "stones";
   /** Where players stand on each square: the plaza first, then o1…o18 in walking order. */
@@ -114,27 +116,28 @@ export const ISLANDS: IslandArt[] = [
     spots: [],
     decor: [],
   },
-  // Theme #2 巨龍天空城 (Sky 2026-10-23): bought with 能量; the same ring, the dragons' world round it.
+  // Theme #2 巨龍天空城 (Sky 2026-10-23): bought with 能量; the same ring, the dragons' world round it. Its 我嘅領地
+  // picture is the 3D island fully awake (same style as 深空奇幻島), with the real dragon flying round it in code.
   {
     id: "dragon",
     name: "巨龍天空城",
     art: "/art/islands/dragon.webp",
-    w: 1024,
-    h: 768,
+    w: 1464,
+    h: 1218,
     top: 120,
     squareW: 60,
     awaken: "dragon",
-    scene: true,
     tiles: "painted",
-    // Code-made life on the picture: the volcano nest's lava and smoke, the temple's and the statue's gold.
+    flyer: "/art/islands/dragon-fly.webp",
+    // Code-made life on the picture: lava, the volcano's smoke, the temple's and the dragon tower's gold, the storm.
     glows: [
-      { x: 163, y: 122, r: 34, colour: "#ff7a1a" },
-      { x: 105, y: 238, r: 26, colour: "#ff5a10" },
-      { x: 268, y: 262, r: 22, colour: "#ff7a1a" },
-      { x: 482, y: 92, r: 44, colour: "#ffd36b" },
-      { x: 506, y: 300, r: 30, colour: "#ffe08a" },
+      { x: 180, y: 614, r: 70, colour: "#ff6a10" },
+      { x: 144, y: 667, r: 44, colour: "#ff7a1a" },
+      { x: 713, y: 95, r: 80, colour: "#ffd36b" },
+      { x: 713, y: 400, r: 55, colour: "#ffe08a" },
+      { x: 1264, y: 427, r: 60, colour: "#bfdcff" },
     ],
-    smoke: [{ x: 163, y: 100 }],
+    smoke: [{ x: 189, y: 507 }],
     squares: ringSquares(),
     nest: { x: 476, y: 836, w: 110 },
     falls: [],

@@ -55,6 +55,8 @@ cd '${work}'
 chmod +x gradlew
 ./gradlew --no-daemon assembleDebug
 cp app/build/outputs/apk/debug/app-debug.apk '${out}'
+# The signing key's fingerprint, for Google sign-in (Firebase needs it once).
+keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey 2>/dev/null | grep -E 'SHA1:|SHA256:' > '${join(DIR, "fingerprint.txt")}' || true
 cp '${out}' '${join(DIR, "Boolionaire.apk")}'
 `;
   const end = `if [ $? -eq 0 ]; then echo '${tag}' > '${lastFile}'; echo "$(date -u +%FT%TZ) OK ${tag} built ${out}" > '${join(DIR, "status.txt")}'; else echo "$(date -u +%FT%TZ) FAILED ${tag} (see build.log)" > '${join(DIR, "status.txt")}'; fi`;

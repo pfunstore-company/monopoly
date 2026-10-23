@@ -62,6 +62,22 @@ try {
       const made = await api("/v1/bundleIds", { data: { type: "bundleIds", attributes: { identifier: bundle, name: "Boolionaire", platform: "IOS" } } });
       note += `, registered ${made.status}${made.ok ? "" : ` ${JSON.stringify(made.json.errors?.[0]?.detail ?? "")}`}`;
     } else if (found.ok) note += ", already registered";
+    // 蘋果登入 (Sky 2026-10-23): the app ID needs the Sign in with Apple capability.
+    const look = await api(`/v1/bundleIds?filter[identifier]=${encodeURIComponent(bundle)}`);
+    const bid = (look.json.data ?? []).find((d) => d.attributes?.identifier === bundle)?.id;
+    if (bid) {
+      const caps = await api(`/v1/bundleIds/${bid}/bundleIdCapabilities`);
+      if (caps.ok && !(caps.json.data ?? []).some((c) => c.attributes?.capabilityType === "APPLE_ID_AUTH")) {
+        const made = await api("/v1/bundleIdCapabilities", {
+          data: {
+            type: "bundleIdCapabilities",
+            attributes: { capabilityType: "APPLE_ID_AUTH", settings: [{ key: "APPLE_ID_AUTH_APP_CONSENT", options: [{ key: "PRIMARY_APP_CONSENT" }] }] },
+            relationships: { bundleId: { data: { type: "bundleIds", id: bid } } },
+          },
+        });
+        note += `; Sign in with Apple ${made.status}${made.ok ? "" : ` ${JSON.stringify(made.json.errors?.[0]?.detail ?? "")}`}`;
+      } else note += `; Sign in with Apple ${caps.ok ? "on" : `lookup ${caps.status}`}`;
+    }
     writeFileSync(join(DIR, "bundle.txt"), `${new Date().toISOString()} ${note}\n`);
   } catch (e) {
     writeFileSync(join(DIR, "bundle.txt"), `${new Date().toISOString()} bundle step failed: ${e instanceof Error ? e.message : e}\n`);

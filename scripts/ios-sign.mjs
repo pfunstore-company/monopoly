@@ -61,12 +61,15 @@ sh("security", ["unlock-keychain", "-p", state.kcPass, kc]);
 const list = sh("security", ["list-keychains", "-d", "user"]).split("\n").map((l) => l.trim().replace(/^"|"$/g, "")).filter(Boolean);
 if (!list.includes(kc)) sh("security", ["list-keychains", "-d", "user", "-s", kc, ...list]);
 
-// 3. An App Store profile for the app with that certificate.
+// 3. An App Store profile for the app with that certificate; made again when the app gains a capability
+// (2026-10-23: Sign in with Apple), since a profile only carries what the app ID had when it was made.
+const CAPS = "siwa-1";
+if (state.profileCaps !== CAPS) delete state.profileName;
 if (!state.profileName) {
   const ids = await api(`/v1/bundleIds?filter[identifier]=${encodeURIComponent(bundle)}`);
   const bid = (ids.data ?? []).find((d) => d.attributes.identifier === bundle)?.id;
   if (!bid) throw new Error(`bundle id ${bundle} not registered`);
-  const name = `Boolionaire App Store ${new Date().toISOString().slice(0, 10)}`;
+  const name = `Boolionaire App Store ${new Date().toISOString().slice(0, 16).replace(/[T:]/g, " ")}`;
   const prof = await api("/v1/profiles", {
     data: {
       type: "profiles",
@@ -75,6 +78,7 @@ if (!state.profileName) {
     },
   });
   state.profileName = name;
+  state.profileCaps = CAPS;
   state.profileContent = prof.data.attributes.profileContent;
   writeFileSync(statePath, JSON.stringify(state, null, 2));
 }

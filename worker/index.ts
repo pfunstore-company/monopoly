@@ -2,7 +2,18 @@
  * The site's worker (Sky 2026-10-22): /api/* goes to the accounts Durable Object (SQLite, created by
  * `wrangler deploy` itself — no database to set up by hand); everything else is the static game in ./out.
  */
-import { deleteAccount, getSave, login, logout, putSave, register, setup, userOf, type Result, type Sql } from "./accounts";
+import { FIREBASE_KEYS_URL, deleteAccount, deleteSelf, getSave, idSignIn, login, logout, providerOf, putSave, register, setup, userOf, verifyIdToken, type Result, type Sql } from "./accounts";
+
+// Google's signing keys for Firebase ID tokens, kept until they say they expire.
+let keyCache: { keys: JsonWebKey[]; until: number } | null = null;
+async function firebaseKeys(now: number): Promise<JsonWebKey[]> {
+  if (keyCache && keyCache.until > now) return keyCache.keys;
+  const r = await fetch(FIREBASE_KEYS_URL);
+  const keys = ((await r.json()) as { keys?: JsonWebKey[] }).keys ?? [];
+  const age = Number(/max-age=(\d+)/.exec(r.headers.get("Cache-Control") ?? "")?.[1] ?? 3600);
+  keyCache = { keys, until: now + Math.min(age, 6 * 3600) * 1000 };
+  return keys;
+}
 
 type Env = { ASSETS: { fetch(req: Request): Promise<Response> }; ACCOUNTS: { idFromName(n: string): unknown; get(id: unknown): { fetch(req: Request): Promise<Response> } } };
 
@@ -48,10 +59,20 @@ export class Accounts {
       if (req.method === "POST" && path === "register") return send(await register(this.sql, body.name, body.password, now));
       if (req.method === "POST" && path === "login") return send(await login(this.sql, body.name, body.password, now));
       // The web page for deleting an account (Google Play asks for one outside the app).
-      if (req.method === "POST" && path === "delete") return send(await deleteAccount(this.sql, body.name, body.password, now));
+      if (req.method === "POST" && path === "delete" && body.idToken === undefined) return send(await deleteAccount(this.sql, body.name, body.password, now));
+      // Google / Apple sign-in, and the web delete page for a Google account.
+      if (req.method === "POST" && (path === "id-signin" || path === "delete")) {
+        const who = await verifyIdToken(body.idToken, await firebaseKeys(now), now);
+        if (!who) return json({ ok: false, error: "bad-token" }, 401);
+        const r = await idSignIn(this.sql, who, now);
+        if (path === "id-signin" || !r.ok) return send(r);
+        const u = await userOf(this.sql, String(r.token));
+        return send(u ? deleteSelf(this.sql, u.id) : { ok: false, error: "wrong", status: 401 });
+      }
       const user = await userOf(this.sql, token);
       if (!user) return json({ ok: false, error: "signed-out" }, 401);
-      if (req.method === "GET" && path === "me") return json({ ok: true, name: user.name, created: user.created });
+      if (req.method === "GET" && path === "me") return json({ ok: true, name: user.name, created: user.created, provider: providerOf(this.sql, user.id) });
+      if (req.method === "POST" && path === "delete-me") return send(deleteSelf(this.sql, user.id));
       if (req.method === "POST" && path === "logout") return send(await logout(this.sql, token));
       if (req.method === "GET" && path === "save") return send(getSave(this.sql, user.id));
       if (req.method === "PUT" && path === "save") return send(putSave(this.sql, user.id, body.data, now));

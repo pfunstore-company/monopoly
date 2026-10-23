@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deleteAccount, getSave, login, putSave, register, setup, userOf, validName, type Sql } from "../worker/accounts";
+import { FIREBASE_PROJECT, deleteAccount, deleteSelf, getSave, idSignIn, login, providerOf, putSave, register, setup, userOf, validName, verifyIdToken, type Sql } from "../worker/accounts";
 
 function db(): Sql {
   // node:sqlite (Node 22) through require, so the type check needs no sqlite types.
@@ -53,5 +53,63 @@ describe("帳號", () => {
     assert.equal(r.ok, false);
     assert.equal((r as unknown as { error: string }).error, "locked");
     ok(await login(sql, "Lee", "secret1", 16 * 60 * 1000));
+  });
+});
+
+describe("Google / Apple 登入", () => {
+  const b64u = (x: string | Uint8Array) => Buffer.from(x).toString("base64url");
+  async function maker() {
+    const pair = (await crypto.subtle.generateKey(
+      { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+      true,
+      ["sign", "verify"],
+    )) as CryptoKeyPair;
+    const jwk = { ...(await crypto.subtle.exportKey("jwk", pair.publicKey)), kid: "k1" };
+    const make = async (claims: Record<string, unknown>, kid = "k1") => {
+      const head = b64u(JSON.stringify({ alg: "RS256", kid }));
+      const body = b64u(JSON.stringify(claims));
+      const sig = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, new TextEncoder().encode(`${head}.${body}`)));
+      return `${head}.${body}.${b64u(sig)}`;
+    };
+    return { jwk, make };
+  }
+  const now = 1_800_000_000_000;
+  const good = (over: Record<string, unknown> = {}) => ({
+    aud: FIREBASE_PROJECT,
+    iss: `https://securetoken.google.com/${FIREBASE_PROJECT}`,
+    sub: "uid-1",
+    iat: now / 1000 - 10,
+    exp: now / 1000 + 3000,
+    name: "Sky Yung",
+    firebase: { sign_in_provider: "google.com" },
+    ...over,
+  });
+  it("checks the token", async () => {
+    const { jwk, make } = await maker();
+    assert.equal((await verifyIdToken(await make(good()), [jwk], now))?.sub, "uid-1");
+    assert.equal(await verifyIdToken(await make(good({ aud: "other" })), [jwk], now), null, "other project");
+    assert.equal(await verifyIdToken(await make(good({ exp: now / 1000 - 999 })), [jwk], now), null, "expired");
+    assert.equal(await verifyIdToken(await make(good({ firebase: { sign_in_provider: "password" } })), [jwk], now), null, "not Google/Apple");
+    assert.equal(await verifyIdToken(await make(good(), "k2"), [jwk], now), null, "unknown key");
+    const t = await make(good());
+    assert.equal(await verifyIdToken(t.slice(0, -4) + "AAAA", [jwk], now), null, "bad signature");
+  });
+  it("makes the account once, then signs back in; deleting removes it", async () => {
+    const sql = db();
+    setup(sql);
+    const first = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com", name: "Sky Yung" }, 1)) as unknown as { ok: boolean; token: string; name: string; fresh: boolean };
+    assert.ok(first.ok && first.fresh);
+    assert.equal(first.name, "Sky Yung");
+    const again = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com" }, 2)) as unknown as { token: string; fresh: boolean };
+    assert.equal(again.fresh, false);
+    const u = await userOf(sql, again.token);
+    assert.equal(providerOf(sql, u!.id), "apple.com");
+    assert.equal((await login(sql, "id:uid-1", "", 3)).ok, false, "no password sign-in for these");
+    ok(deleteSelf(sql, u!.id));
+    assert.equal(await userOf(sql, again.token), null);
+    const back = (await idSignIn(sql, { sub: "uid-1", provider: "apple.com" }, 4)) as unknown as { fresh: boolean };
+    assert.equal(back.fresh, true, "a new account after deleting");
+    const anon = (await idSignIn(sql, { sub: "uid-2", provider: "google.com" }, 5)) as unknown as { name: string };
+    assert.match(anon.name, /^玩家\d{4}$/);
   });
 });

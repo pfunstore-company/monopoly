@@ -10,3 +10,6 @@ project(':capacitor-firebase-analytics').projectDir = new File('plugins/firebase
 
 include ':capacitor-firebase-crashlytics'
 project(':capacitor-firebase-crashlytics').projectDir = new File('plugins/firebase-crashlytics')
+
+include ':capacitor-firebase-authentication'
+project(':capacitor-firebase-authentication').projectDir = new File('plugins/firebase-authentication')

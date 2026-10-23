@@ -25,6 +25,9 @@
   <p>Delete your Boolionaire account</p>
   <p class="warn">刪除後，帳號及雲端遊戲進度將永久消失，無法復原。<br>This permanently deletes your account and cloud progress. It cannot be undone.</p>
   <p>你也可以在遊戲內「設定」→「刪除帳號」完成。<br>You can also do this in the game: Settings → Delete account.</p>
+  <button id="g" type="button" style="background:#fff;color:#1f2937;border:3px solid #d6deea">用 Google 帳號刪除 / Delete my Google sign-in account</button>
+  <p style="text-align:center;margin-top:14px">或者用舊帳號名稱和密碼 / or with an old account name and password:</p>
+  <p>Apple 帳號請在 iPhone 遊戲內「設定」→「刪除帳號」。<br>For a Sign in with Apple account, use Settings → Delete account in the iPhone game.</p>
   <form id="f">
     <label>帳號名稱 / Account name<input id="name" autocomplete="username" autocapitalize="off" required maxlength="16"></label>
     <label>密碼 / Password<input id="pw" type="password" autocomplete="current-password" required></label>
@@ -32,7 +35,27 @@
   </form>
   <div id="msg"></div>
 </main>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script>
 <script>
+  firebase.initializeApp({ apiKey: "AIzaSyAXcNCVnLayC2cLkqltWaGfb3oxKOPm1jA", authDomain: "boolionaire-4f7b5.firebaseapp.com", projectId: "boolionaire-4f7b5", appId: "1:246388073348:web:a5e145d48e9bdb5ad4b3d1" });
+  document.getElementById("g").addEventListener("click", async () => {
+    const msg = document.getElementById("msg");
+    let token;
+    try {
+      const r = await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      token = await r.user.getIdToken();
+    } catch { msg.style.color = "#dc2626"; msg.textContent = "Google 登入未完成 / Google sign-in not finished"; return; }
+    if (!confirm("確定永久刪除？ / Delete for good?")) return;
+    msg.textContent = "請稍候… / Please wait…";
+    let r;
+    try {
+      r = await (await fetch("/api/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token }) })).json();
+    } catch { r = { ok: false }; }
+    await firebase.auth().signOut().catch(() => {});
+    msg.style.color = r.ok ? "#16a34a" : "#dc2626";
+    msg.textContent = r.ok ? "已刪除帳號及所有資料。 / Your account and data have been deleted." : "發生問題，請稍後再試 / Something went wrong";
+  });
   const msgs = {
     wrong: "帳號名稱或密碼錯誤 / Wrong account name or password",
     locked: "嘗試次數過多，請 15 分鐘後再試 / Too many tries, wait 15 minutes",

@@ -12,5 +12,9 @@
   "durable_objects": {
     "bindings": [{ "name": "ACCOUNTS", "class_name": "Accounts" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Accounts"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Accounts"] }],
+  // 公司網址 (Sky 2026-10-23): the game on the company's domain; the old workers.dev address keeps working for
+  // the app builds already out there.
+  "workers_dev": true,
+  "routes": [{ "pattern": "boolionaire.pfunstore.company", "custom_domain": true }]
 }

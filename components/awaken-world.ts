@@ -18,6 +18,8 @@ export type AwakenWorld = {
   clear(key: string): void;
   /** Per-frame idle motion (fog drifting, wheel turning…). */
   tick(now: number, dt: number): void;
+  /** Everything this world drew (for ?debug pictures of the island). */
+  root: any;
 };
 
 type Opts = {
@@ -1068,6 +1070,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
   shine();
 
   return {
+    root,
     async own(key, seat, colour, lv) {
       const i = lots.indexOf(key);
       if (i < 0) return;

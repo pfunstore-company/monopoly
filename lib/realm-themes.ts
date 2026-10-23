@@ -112,7 +112,7 @@ export const SPACE_ISLE: Theme = {
 
 /**
  * Theme #2 巨龍天空城 (Sky 2026-10-23, his drawings made 3D): the dragons' city above a sea of clouds — volcano dragon
- * nest (left), golden temple (back), storm bridge (right). The middle grows from a dragon-egg statue to a real dragon
+ * nest (left), golden temple (back), storm bridge (right), floating in the same deep space as 深空奇幻島. The middle grows from a dragon-egg statue to a real dragon
  * flying round the island. Fire, lightning and glow are code, not paint.
  */
 export const DRAGON_ISLE: Theme = {
@@ -152,7 +152,7 @@ export const DRAGON_ISLE: Theme = {
     { at: 18, kind: "dragonTower", name: "龍王塔" },
     { at: 30, kind: "skyDragon", name: "真龍盤旋" },
   ],
-  sky: "clouds",
+  // Sky 2026-10-23: the same deep space as 深空奇幻島 (one style for every 領地).
   towerTall: [0, 0.75, 0.78, 1.0, 1.0],
   slots: { landmark: "dragon", tile: "basic", dice: "basic", building: "dragon" },
   models: {

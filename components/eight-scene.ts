@@ -1698,7 +1698,7 @@ export function createBoardScene(
     });
     const w = world;
     // ?debug: poke the island from the console (window.__world.own("o1", 0, "#ff0000", 4)).
-    if (/[?&]debug\b/.test(window.location.search)) (window as any).__world = w;
+    if (/[?&]debug\b/.test(window.location.search)) Object.assign(window as any, { __world: w, __shot: { renderer, camera, scene } });
     islandAnims.push((now, dt) => w.tick(now, dt));
   }
 

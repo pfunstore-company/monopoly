@@ -144,7 +144,7 @@ export const DRAGON_ISLE: Theme = {
   middle: { ground: [0xe9dfc9, 0xdcd1b8, 0xf2e9d6, 0x9cc866], props: [["pine", 1], ["round", 1]] },
   rock: 0x6f6a7c,
   road: 0xffd36b,
-  fog: { colour: 0xffffff, opacity: 0.5 },
+  fog: { colour: 0xffffff, opacity: 0.32 },
   light: { asleep: 0.6, awake: 1.05 },
   landmark: [
     { at: 3, kind: "eggStatue", name: "龍蛋石像" },

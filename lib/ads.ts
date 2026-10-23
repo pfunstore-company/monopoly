@@ -6,6 +6,7 @@
  */
 import { TESTING } from "@/lib/shop";
 import { track } from "@/lib/analytics";
+import { playerApi } from "@/lib/account";
 
 // AdMob account pub-8789561257233100, app Boolionaire — one app per platform, each with its own three units.
 // Google's sample units (per platform) are used while testing.
@@ -161,8 +162,36 @@ export function startAppOpenAds(): void {
   });
 }
 
+/**
+ * 廣告獎勵由伺服器把關 (Sky 2026-10-23). Ask the server for a code (it refuses past today's limit), play the ad
+ * with that code (Google passes it back to our server), then claim the reward from the server. No ad, no reward.
+ * `watch` plays the ad: the real one in the app; only the tester's countdown card in a browser while testing.
+ */
+export type AdKind = "shop" | "double";
+export type AdResult = { ok: true; energy: number; left: number } | { ok: false; error: "closed" | "no-ad" | "limit" | "offline" | "server" };
+export async function earnAd(kind: AdKind, watch: (ssv: { userId: string; customData: string }) => Promise<"rewarded" | "closed" | "failed">): Promise<AdResult> {
+  const start = await playerApi("ad/start", "POST", { kind });
+  if (!start.ok) return { ok: false, error: start.error === "limit" ? "limit" : start.error === "offline" ? "offline" : "server" };
+  const shown = await watch({ userId: String(start.uid), customData: String(start.nonce) });
+  if (shown !== "rewarded") return { ok: false, error: shown === "closed" ? "closed" : "no-ad" };
+  // Google's word can take a few seconds to reach the server.
+  for (let tries = 0; tries < 12; tries++) {
+    const r = await playerApi("ad/claim", "POST", { nonce: start.nonce });
+    if (r.ok) return { ok: true, energy: Number(r.energy ?? 0), left: Number(r.left ?? 0) };
+    if (r.error !== "waiting") return { ok: false, error: r.error === "limit" ? "limit" : r.error === "offline" ? "offline" : "server" };
+    await new Promise((res) => setTimeout(res, 1500));
+  }
+  return { ok: false, error: "server" };
+}
+
+/** Ads left today, as the server counts them (null when it can't be reached). */
+export async function adsLeftToday(): Promise<{ shop: number; double: number } | null> {
+  const r = await playerApi("ad/left", "GET");
+  return r.ok ? { shop: Number(r.shop), double: Number(r.double) } : null;
+}
+
 /** Play a rewarded ad: "rewarded" when watched to the end, "closed" when skipped, "failed" when none could play. */
-export async function showRewarded(): Promise<"rewarded" | "closed" | "failed"> {
+export async function showRewarded(ssv?: { userId: string; customData: string }): Promise<"rewarded" | "closed" | "failed"> {
   const ad = nativeAds();
   if (!ad || !(await start(ad))) return "failed";
   showing = true;
@@ -190,7 +219,7 @@ export async function showRewarded(): Promise<"rewarded" | "closed" | "failed"> 
           }),
         );
         subs.push(await ad.addListener("onRewardedVideoAdFailedToShow", () => finish("failed")));
-        await ad.prepareRewardVideoAd({ adId: unit("rewarded"), isTesting: TESTING });
+        await ad.prepareRewardVideoAd({ adId: unit("rewarded"), isTesting: TESTING, ...(ssv ? { ssv } : {}) });
         const item = await ad.showRewardVideoAd();
         if (item) rewarded = true;
       } catch {

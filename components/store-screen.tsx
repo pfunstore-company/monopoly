@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { FakeAd } from "@/components/fake-ad";
+import { adsLeftToday } from "@/lib/ads";
 import { HeroSheet, LevelBadge } from "@/components/hero-sheet";
 import { juice } from "@/components/juice";
 import { loadCollection, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
@@ -104,7 +105,9 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
   const [loaded, setLoaded] = useState(false);
   const [result, setResult] = useState<Pull[] | null>(null);
   const [odds, setOdds] = useState(false);
-  const [ad, setAd] = useState<null | (() => void)>(null);
+  const [ad, setAd] = useState(false);
+  // Ads left today as the server counts them (Sky 2026-10-23); null until it answers.
+  const [serverLeft, setServerLeft] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [sheet, setSheet] = useState<string | null>(null);
   useEffect(() => {
@@ -123,11 +126,12 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
       setWallet(loadWallet());
       setCol(out.collection);
       setLoaded(true);
+      void adsLeftToday().then((l) => l && setServerLeft(l.shop));
     }, 0);
     return () => window.clearTimeout(id);
   }, []);
   const day = today();
-  const left = adsLeft(col, day);
+  const left = serverLeft ?? adsLeft(col, day);
 
   const save = (next: { wallet?: Wallet; col?: Collection }) => {
     if (next.wallet) {
@@ -164,14 +168,17 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
   }
 
   function freeAd() {
-    const counted = watchAd(col, day);
-    if (!counted) return;
-    setAd(() => () => {
-      const w = loadWallet();
-      save({ wallet: { ...w, points: w.points + AD_ENERGY }, col: counted });
-      play("coin");
-      flash(t("+{n} 能量", { n: E(AD_ENERGY) }));
-    });
+    if (left <= 0) return;
+    setAd(true);
+  }
+  /** The server granted the ad's reward (it is the one that counts). */
+  function adPaid(r: { energy: number; left: number }) {
+    const w = loadWallet();
+    const units = r.energy / 10_000 || AD_ENERGY;
+    save({ wallet: { ...w, points: w.points + units }, col: watchAd(col, day) ?? col });
+    setServerLeft(r.left);
+    play("coin");
+    flash(t("+{n} 能量", { n: E(units) }));
   }
 
   function buyPack(id: string) {
@@ -460,10 +467,11 @@ export function StoreScreen({ onExit }: { onExit: () => void }) {
 
       {ad ? (
         <FakeAd
-          onCancel={() => setAd(null)}
-          onDone={() => {
-            ad();
-            setAd(null);
+          kind="shop"
+          onCancel={() => setAd(false)}
+          onDone={(r) => {
+            adPaid(r);
+            setAd(false);
           }}
         />
       ) : null}

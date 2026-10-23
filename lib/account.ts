@@ -48,6 +48,39 @@ async function api(path: string, method: string, body?: unknown, token?: string)
   }
 }
 
+// ---- The server's view of this player, for ads (Sky 2026-10-23) ----
+// Not "boolionaire-…", so it never goes into the cloud save.
+const GUEST_TOKEN_KEY = "bn-guest-token";
+
+/** A token the server knows: the signed-in account's, or a quiet guest account made the first time. */
+export async function serverToken(fresh = false): Promise<string | null> {
+  const s = session();
+  if (s) return s.token;
+  try {
+    const saved = fresh ? null : localStorage.getItem(GUEST_TOKEN_KEY);
+    if (saved) return saved;
+    const r = await api("guest", "POST", {});
+    if (!r.ok) return null;
+    localStorage.setItem(GUEST_TOKEN_KEY, String(r.token));
+    return String(r.token);
+  } catch {
+    return null;
+  }
+}
+
+/** Call the server as this player (signed in or guest). */
+export async function playerApi(path: string, method: string, body?: unknown): Promise<Reply> {
+  const token = await serverToken();
+  if (!token) return { ok: false, error: "offline" };
+  const r = await api(path, method, body, token);
+  // A guest token the server no longer knows: make a new one once.
+  if (!r.ok && r.error === "signed-out" && !session()) {
+    const again = await serverToken(true);
+    return again ? api(path, method, body, again) : r;
+  }
+  return r;
+}
+
 /** Everything the game keeps on this device (not the sign-in itself). */
 export function collectSave(): Record<string, string> {
   const out: Record<string, string> = {};

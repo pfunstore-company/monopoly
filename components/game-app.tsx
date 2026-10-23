@@ -6,6 +6,7 @@ import { StoryVideo, storySeen } from "@/components/story-video";
 import { TitleScreen } from "@/components/title-screen";
 import { PartnerPick } from "@/components/hero-sheet";
 import { AccountGate } from "@/components/account-screen";
+import { AppOnly, inApp, testerBrowser } from "@/components/app-only";
 import { isGuest, session, startAutoSync } from "@/lib/account";
 import { loadCollection, saveCollection } from "@/components/wallet-store";
 import { choosePartner } from "@/lib/shop";
@@ -29,6 +30,12 @@ export function GameApp() {
     }, 0);
     return () => window.clearTimeout(id);
   }, []);
+  // 只做 app (Sky 2026-10-23): a browser gets the download page (testers excepted, while testing).
+  const [browser, setBrowser] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setBrowser(!inApp() && !testerBrowser()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   useEffect(() => initMusic(), []);
   useEffect(() => startAppOpenAds(), []);
   // Portrait only (Sky 2026-10-02): where the browser allows it (an installed app on Android), lock it upright.
@@ -40,6 +47,7 @@ export function GameApp() {
       // Not allowed here; the sideways cover in the layout does the job.
     }
   }, []);
+  if (browser) return <AppOnly onTester={() => setBrowser(false)} />;
   return (
     <>
       {started ? (

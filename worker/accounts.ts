@@ -197,3 +197,15 @@ export async function idSignIn(sql: Sql, who: IdClaims, now: number): Promise<Re
 export function providerOf(sql: Sql, userId: number): string {
   return String(sql.exec(`SELECT provider FROM links WHERE user_id = ?`, userId).toArray()[0]?.provider ?? "password");
 }
+
+/**
+ * 訪客 on the server (Sky 2026-10-23): a guest gets a quiet account too, so the server can count their ads.
+ * Its name_key "guest:<random>" can never be typed; no password, no cloud save shown anywhere.
+ */
+export async function guestAccount(sql: Sql, now: number): Promise<Result> {
+  const key = `guest:${randomHex(16)}`;
+  const name = `訪客${1000 + Math.floor(Math.random() * 9000)}`;
+  sql.exec(`INSERT INTO users (name, name_key, salt, hash, created) VALUES (?, ?, '', '', ?)`, name, key, now);
+  const id = Number(sql.exec(`SELECT id FROM users WHERE name_key = ?`, key).toArray()[0].id);
+  return { ok: true, token: await newSession(sql, id, now), name };
+}

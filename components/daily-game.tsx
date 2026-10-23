@@ -10,6 +10,7 @@ import { StealScreen } from "@/components/steal-screen";
 import { ShopScreen } from "@/components/shop-screen";
 import { StoreScreen } from "@/components/store-screen";
 import { FakeAd } from "@/components/fake-ad";
+import { adsLeftToday } from "@/lib/ads";
 import { ENERGY_EVENT, bumpIsles, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
 import { DOUBLE_ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
@@ -144,7 +145,11 @@ export function DailyGame() {
   const [offerSkip, setOfferSkip] = useState(-1);
   useEffect(() => {
     if (storeOpen) return;
-    const id = window.setTimeout(() => setAdsToday(adsLeft(loadCollection(), dayKeyOf(Date.now()), "double")), 0);
+    const id = window.setTimeout(() => {
+      setAdsToday(adsLeft(loadCollection(), dayKeyOf(Date.now()), "double"));
+      // The server's count is the real one (Sky 2026-10-23).
+      void adsLeftToday().then((l) => l && setAdsToday(l.double));
+    }, 0);
     return () => window.clearTimeout(id);
   }, [storeOpen, state.rollCount]);
   const [storyOpen, setStoryOpen] = useState(false);
@@ -544,13 +549,14 @@ export function DailyGame() {
       ) : null}
       {adFor !== null ? (
         <FakeAd
+          kind="double"
           onCancel={() => setAdFor(null)}
-          onDone={() => {
+          onDone={(r) => {
             const day = dayKeyOf(Date.now());
             const counted = watchAd(loadCollection(), day, "double");
-            if (counted && adFor === state.rollCount) {
-              saveCollection(counted);
-              setAdsToday(adsLeft(counted, day, "double"));
+            if (adFor === state.rollCount) {
+              if (counted) saveCollection(counted);
+              setAdsToday(r.left);
               dispatch({ type: "ad-double" });
               play("chest");
               juice("medium", undefined, window.innerHeight * 0.45);

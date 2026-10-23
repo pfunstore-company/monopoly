@@ -1697,6 +1697,8 @@ export function createBoardScene(
           .catch(() => null),
     });
     const w = world;
+    // ?debug: poke the island from the console (window.__world.own("o1", 0, "#ff0000", 4)).
+    if (/[?&]debug\b/.test(window.location.search)) (window as any).__world = w;
     islandAnims.push((now, dt) => w.tick(now, dt));
   }
 

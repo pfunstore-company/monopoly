@@ -971,7 +971,6 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
           if (fly) {
             const holder = new T.Group();
             holder.add(fly);
-            fly.rotation.y = Math.PI / 2; // the model faces +x; it flies along its path
             g.add(holder);
             g.userData.flyer = holder;
           }
@@ -1186,8 +1185,11 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
         const f = m.userData.flyer, a = now / 5200;
         const rx = 6.2, rz = 5.4;
         f.position.set(Math.cos(a) * rx, 3.4 + Math.sin(a * 2.3) * 0.6, Math.sin(a) * rz);
+        // The model faces +z (head forward): turn it along its path and lean into the turn (toward the middle).
+        const vx = -Math.sin(a) * rx, vz = Math.cos(a) * rz, yaw = Math.atan2(vx, vz);
+        const side = Math.cos(yaw) * -f.position.x + -Math.sin(yaw) * -f.position.z;
         f.rotation.order = "YXZ";
-        f.rotation.set(0, -a - Math.PI / 2, 0.35);
+        f.rotation.set(-0.08, yaw, side > 0 ? -0.35 : 0.35);
         const beat = Math.sin(now / 160);
         f.scale.set(1, 1 + beat * 0.08, 1 - Math.abs(beat) * 0.04);
       }

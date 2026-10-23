@@ -5,7 +5,7 @@ android {
     namespace = "com.skyyung.boolionaire"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.skyyung.boolionaire"
+        applicationId "com.pfunstore.boolionaire" // Play Store (Sky 2026-10-23); the code itself stays in com.skyyung.boolionaire
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -17,8 +17,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Play upload key (Sky's Mac makes it once; its password never leaves ~/monopoly-inbox/android/upload).
+    signingConfigs {
+        release {
+            if (System.getenv("BN_UPLOAD_STORE")) {
+                storeFile file(System.getenv("BN_UPLOAD_STORE"))
+                storePassword System.getenv("BN_UPLOAD_PASS")
+                keyAlias "upload"
+                keyPassword System.getenv("BN_UPLOAD_PASS")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("BN_UPLOAD_STORE")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

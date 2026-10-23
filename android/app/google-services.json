@@ -7,6 +7,50 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:246388073348:android:ec1802a0cac767aad4b3d1",
+        "android_client_info": {
+          "package_name": "com.pfunstore.boolionaire"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "246388073348-76ms5d76sg521cq9tj7gail6hlon32ab.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pfunstore.boolionaire",
+            "certificate_hash": "f432472cbd17297e8f95201a841007f967cbeead"
+          }
+        },
+        {
+          "client_id": "246388073348-7p2a0a8ci45jljg26hkih8u3rftsvvle.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBco-vGcMHZD1fIeyqHuUDxIEE4hbMuDXg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "246388073348-7p2a0a8ci45jljg26hkih8u3rftsvvle.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "246388073348-qndf0i162gc1gscpd1uos456v4camqod.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.skyyung.boolionaire"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:246388073348:android:bec9d31bca3f3e01d4b3d1",
         "android_client_info": {
           "package_name": "com.skyyung.boolionaire"

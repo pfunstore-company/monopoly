@@ -1,6 +1,7 @@
 // Android 測試版 (Sky 2026-10-22): after each web deploy on Sky's Mac, if android/release.json has a new build number,
-// build an Android install file (APK) in the background so the web deploy isn't held up. Not for the Play Store yet
-// (Sky: 暫時唔使上架), so it is the debug-signed APK Sky can put straight on an Android phone.
+// build an Android install file (APK) in the background so the web deploy isn't held up: the debug-signed APK Sky can
+// put straight on a phone, and (2026-10-23, Play Console app com.pfunstore.boolionaire) the Play upload bundle (AAB),
+// signed with an upload key made here once. The key and its password stay in ~/monopoly-inbox/android/upload.
 // The first run fetches its own tools into ~/monopoly-inbox/android/tools: a Java 21 (Adoptium) and Google's Android
 // SDK, whose licences Sky agreed to accept ("可以，幫我接受"). Progress: ~/monopoly-inbox/android/status.txt, build.log.
 import { spawn } from "node:child_process";
@@ -53,8 +54,22 @@ yes | "$SM" --sdk_root='${sdk}' --licenses > /dev/null || true
 echo "sdk.dir=${sdk}" > '${work}/local.properties'
 cd '${work}'
 chmod +x gradlew
-./gradlew --no-daemon assembleDebug
+UP='${join(DIR, "upload")}'
+mkdir -p "$UP" && chmod 700 "$UP"
+if [ ! -f "$UP/upload.jks" ]; then
+  ( umask 077; LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 > "$UP/password.txt" )
+  keytool -genkeypair -v -keystore "$UP/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
+    -storepass "$(cat "$UP/password.txt")" -keypass "$(cat "$UP/password.txt")" \
+    -dname "CN=P Fun Store Company Limited, O=P Fun Store Company Limited, C=HK" > /dev/null 2>&1
+  keytool -exportcert -rfc -keystore "$UP/upload.jks" -alias upload -storepass "$(cat "$UP/password.txt")" > "$UP/upload_certificate.pem"
+fi
+export BN_UPLOAD_STORE="$UP/upload.jks"
+export BN_UPLOAD_PASS="$(cat "$UP/password.txt")"
+./gradlew --no-daemon assembleDebug bundleRelease
 cp app/build/outputs/apk/debug/app-debug.apk '${out}'
+cp app/build/outputs/bundle/release/app-release.aab '${join(DIR, "Boolionaire-")}${rel.version}-${rel.build}.aab'
+cp app/build/outputs/bundle/release/app-release.aab '${join(DIR, "Boolionaire.aab")}'
+keytool -list -v -keystore "$UP/upload.jks" -alias upload -storepass "$BN_UPLOAD_PASS" 2>/dev/null | grep -E 'SHA1:|SHA256:' > '${join(DIR, "fingerprint-upload.txt")}' || true
 # The signing key's fingerprint, for Google sign-in (Firebase needs it once).
 keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey 2>/dev/null | grep -E 'SHA1:|SHA256:' > '${join(DIR, "fingerprint.txt")}' || true
 cp '${out}' '${join(DIR, "Boolionaire.apk")}'

@@ -44,6 +44,12 @@ export type Theme = {
   models?: Record<string, string>;
   /** What is round the island: deep space (default) or a sea of clouds under a day sky. */
   sky?: "space" | "clouds";
+  /**
+   * 群島浮橋 (巨龍天空城, Sky 2026-10-23): no hex land — each area is its own floating island model (Sky's drawings made
+   * 3D), with a king's island in the middle, a little start islet and floating bridges over the gaps. `top` is how high
+   * each model's flat top sits in its own units (the models are about 2 across).
+   */
+  archipelago?: { zones: [string, string, string]; king: string; start: string; bridge: string; top: Record<string, number> };
   /** How tall the owner's building stands at each level (world units; index 0 unused). */
   towerTall?: number[];
   /** 皮膚位 (reserved for the shop, Sky 2026-10-18: no shop UI yet): which skin each slot uses. */
@@ -112,7 +118,8 @@ export const SPACE_ISLE: Theme = {
 
 /**
  * Theme #2 巨龍天空城 (Sky 2026-10-23, his drawings made 3D): the dragons' city above a sea of clouds — volcano dragon
- * nest (left), golden temple (back), storm bridge (right), floating in the same deep space as 深空奇幻島. The middle grows from a dragon-egg statue to a real dragon
+ * nest (left), golden temple (back), storm bridge (right), floating in the same deep space as 深空奇幻島 — but as an
+ * archipelago (群島浮橋): four floating islands joined by bridges, not one hex land. The middle grows from a dragon-egg statue to a real dragon
  * flying round the island. Fire, lightning and glow are code, not paint.
  */
 export const DRAGON_ISLE: Theme = {
@@ -154,10 +161,23 @@ export const DRAGON_ISLE: Theme = {
   ],
   // Sky 2026-10-23: the same deep space as 深空奇幻島 (one style for every 領地).
   towerTall: [0, 0.75, 0.78, 1.0, 1.0],
+  archipelago: {
+    zones: ["isleVolcano", "isleTemple", "isleStorm"],
+    king: "isleKing",
+    start: "isleStart",
+    bridge: "isleBridge",
+    top: { isleVolcano: 0.29, isleTemple: 0.255, isleStorm: 0.33, isleKing: 0.337, isleStart: 0.497, isleBridge: 0.2 },
+  },
   slots: { landmark: "dragon", tile: "basic", dice: "basic", building: "dragon" },
   models: {
     pine: "/models/realm/pine.glb",
     round: "/models/realm/round.glb",
+    isleVolcano: "/models/dragon/isle-volcano.glb",
+    isleTemple: "/models/dragon/isle-temple.glb",
+    isleStorm: "/models/dragon/isle-storm.glb",
+    isleKing: "/models/dragon/isle-king.glb",
+    isleStart: "/models/dragon/isle-start.glb",
+    isleBridge: "/models/dragon/isle-bridge.glb",
     lavaRock: "/models/dragon/lavarock.glb",
     pillar: "/models/dragon/pillar.glb",
     cloudStone: "/models/dragon/cloudstone.glb",

@@ -10,6 +10,7 @@
  * This file only draws: the scene tells it who owns what (own / clear) and it never decides anything about the game.
  */
 import { landmarkStage, type MarvelKind, type PropKind, type Theme } from "@/lib/realm-themes";
+import { ARCH_PREVIEW } from "@/lib/islands";
 
 export type AwakenWorld = {
   /** A lot now belongs to `seat` at `level` (first time: its land wakes). */
@@ -53,6 +54,8 @@ const hash = (x: number, z: number, n = 0) => {
 
 export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): AwakenWorld {
   const { points, plaza, lots, top: TOP, tween, wait } = o;
+  /** 群島浮橋: where the islands' flat tops sit (everything stands on them). */
+  const ARCH_TOP = 0.03;
   const P = (key: string) => new T.Vector3(points[key][0], 0, points[key][1]);
   const lin = (hex: number) => new T.Color(hex).convertSRGBToLinear();
   /** The sleeping look: the same colour drained and dusky. */
@@ -101,7 +104,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
   const marvelAt = [0, 1, 2].map((z) => {
     const six = pads.slice(z * 6, z * 6 + 6);
     const c = six.reduce((s, p) => s.add(p), new T.Vector3()).multiplyScalar(1 / 6);
-    return c.addScaledVector(outward(c), 3.1);
+    return c.addScaledVector(outward(c), ARCH_PREVIEW && theme.archipelago ? 2.3 : 3.1);
   });
   const middleAt = new T.Vector3(centre.x, 0, centre.z + 0.6);
 
@@ -164,6 +167,9 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     if (land.instanceColor) land.instanceColor.needsUpdate = true;
   };
   root.add(land, under);
+  /** 群島浮橋: the islands are models; the hex land stays (for heights and waking) but isn't drawn. */
+  const arch = ARCH_PREVIEW ? theme.archipelago : undefined;
+  if (arch) land.visible = under.visible = false;
 
   // Little rocks floating round the island, each with a glowing crystal.
   const crystalMat = new T.MeshStandardMaterial({ color: lin(0x8fe3ff), emissive: lin(0x3fa9ff), emissiveIntensity: 0.6, roughness: 0.2, flatShading: true });
@@ -276,9 +282,12 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     }
     return best;
   });
+  const gapsU = uOf.map((u, j) => ((uOf[(j + 1) % N] - u + 1) % 1)).sort((a, b) => a - b);
+  /** 群島浮橋: a slab never reaches further than half the usual step (the bridges fill the gaps). */
+  const halfCap = arch ? gapsU[Math.floor(N / 2)] / 2 : 1;
   const span = (j: number) => {
     const u = uOf[j], prev = uOf[(j + N - 1) % N], next = uOf[(j + 1) % N];
-    const back = ((u - prev + 1) % 1) / 2, fwd = ((next - u + 1) % 1) / 2;
+    const back = Math.min(halfCap, ((u - prev + 1) % 1) / 2), fwd = Math.min(halfCap, ((next - u + 1) % 1) / 2);
     return [u - back, u + fwd] as const;
   };
   pads.forEach((_p, i) => {
@@ -388,6 +397,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     Math.hypot(middleAt.x - x, middleAt.z - z) < 1.7 ||
     Math.hypot(plazaAt.x - x, plazaAt.z - z) < 1.1;
   cells.forEach((c) => {
+    if (arch) return;
     const r = hash(c.x, c.z, 5);
     if (r > (c.pad === -1 ? 0.1 : 0.36) || keepClear(c.x, c.z)) return;
     const kinds = c.pad >= 0 ? theme.zones[Math.floor(c.pad / 6)].props : theme.middle.props;
@@ -481,14 +491,97 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
   };
   if (o.loadModel && theme.models) {
     const entries = Object.entries(theme.models);
-    void Promise.all(entries.map(([name, url]) => o.loadModel!(url).then((m) => m && (models[name] = m)))).then(useModels);
+    void Promise.all(entries.map(([name, url]) => o.loadModel!(url).then((m) => m && (models[name] = m)))).then(() => {
+      useModels();
+      placeIslands();
+    });
   }
+
+  // ---------- 群島浮橋: the floating islands, the king's island, the start islet and the bridges ----------
+  /** Each outer island's wake (0 asleep … 1) and the king's island's, for the grey-to-colour shader. */
+  const isleWake: { value: number }[][] = [[], [], [], []];
+  /** A model laid flat: its long side along `along` (x, z), its top at ARCH_TOP, `length` long. */
+  const layIsland = (name: string, at: any, along: [number, number] | null, length: number, wake: { value: number }[] | null) => {
+    const src = models[name];
+    if (!src || !arch) return null;
+    const m = src.clone(true);
+    const box = new T.Box3().setFromObject(m), size = box.getSize(new T.Vector3()), mid = box.getCenter(new T.Vector3());
+    const k = length / Math.max(0.001, size.x);
+    const g = new T.Group();
+    m.position.set(-mid.x * k, ARCH_TOP - (arch.top[name] ?? box.max.y) * k, -mid.z * k);
+    m.scale.setScalar(k);
+    g.add(m);
+    g.position.set(at.x, 0, at.z);
+    if (along) g.rotation.y = -Math.atan2(along[1], along[0]);
+    m.traverse((x: any) => {
+      if (!x.isMesh) return;
+      x.receiveShadow = true;
+      x.castShadow = true;
+      if (wake) {
+        const { mm, u } = wakeable(x.material);
+        x.material = mm;
+        wake.push(u);
+      }
+    });
+    root.add(g);
+    return g;
+  };
+  const placeIslands = () => {
+    if (!arch) return;
+    for (let z = 0; z < 3; z++) {
+      const six = pads.slice(z * 6, z * 6 + 6);
+      const c = six.reduce((s: any, p: any) => s.add(p), new T.Vector3()).multiplyScalar(1 / 6);
+      const a = six[0], b = six[5];
+      const out = new T.Vector3(c.x - centre.x, 0, c.z - centre.z).normalize();
+      const at = c.clone().addScaledVector(out, 1.15);
+      layIsland(arch.zones[z], at, [b.x - a.x, b.z - a.z], a.distanceTo(b) + 3.2, isleWake[z]);
+      isleWake[z].forEach((u) => (u.value = zoneWake(z)));
+    }
+    layIsland(arch.king, middleAt.clone().setZ(centre.z), null, 5.0, isleWake[3]);
+    isleWake[3].forEach((u) => (u.value = stage > 0 ? 1 : 0));
+    layIsland(arch.start, plazaAt, null, 1.9, null);
+    // A bridge over every gap: start → first lot, between the areas, last lot → start.
+    const ends: [any, any][] = [
+      [plazaAt, pads[0]],
+      [pads[5], pads[6]],
+      [pads[11], pads[12]],
+      [pads[17], plazaAt],
+    ];
+    for (const [p, q] of ends) {
+      const mid = p.clone().add(q).multiplyScalar(0.5);
+      layIsland(arch.bridge, mid, [q.x - p.x, q.z - p.z], Math.max(1, p.distanceTo(q) - 1.1), null);
+    }
+  };
+  /** How awake an outer island is: half at its first lot bought, fully when all six are. */
+  const zoneWake = (z: number) => {
+    const n = [0, 1, 2, 3, 4, 5].filter((k) => owner[z * 6 + k] !== null).length;
+    return n ? 0.55 + 0.45 * ((n - 1) / 5) : 0;
+  };
+  const wakeIsland = (z: number) => {
+    const want = z === 3 ? (stage > 0 ? 1 : 0) : zoneWake(z);
+    const us = isleWake[z];
+    if (!us.length || Math.abs(us[0].value - want) < 0.01) return;
+    const from = us[0].value;
+    void tween(900, (k) => us.forEach((u) => (u.value = from + (want - from) * k)));
+  };
 
   // ---------- Fog over the sleeping land ----------
   type Puff = { s: any; pad: number; y: number; phase: number; alive: boolean };
   const fog: Puff[] = [];
+  if (arch)
+    pads.forEach((p: any, i: number) => {
+      const out = new T.Vector3(p.x - centre.x, 0, p.z - centre.z).normalize();
+      for (let layer = 0; layer < 2; layer++) {
+        const s = new T.Sprite(new T.SpriteMaterial({ map: o.glowTex, color: lin(theme.fog.colour), transparent: true, opacity: theme.fog.opacity, depthWrite: false }));
+        const size = 1.6 + hash(i, layer, 12) * 1.2, y = 0.35 + layer * 0.45;
+        s.position.set(p.x + out.x * (0.8 + layer), y, p.z + out.z * (0.8 + layer));
+        s.scale.set(size, size * 0.55, 1);
+        root.add(s);
+        fog.push({ s, pad: i, y, phase: hash(i, layer, 17) * 6, alive: true });
+      }
+    });
   cells.forEach((c, n) => {
-    if (n % 3 || segDist(c.x, c.z) < 0.7) return;
+    if (arch || n % 3 || segDist(c.x, c.z) < 0.7) return;
     for (let layer = 0; layer < 2; layer++) {
       const s = new T.Sprite(new T.SpriteMaterial({ map: o.glowTex, color: lin(theme.fog.colour), transparent: true, opacity: theme.fog.opacity, depthWrite: false }));
       const size = 1.4 + hash(c.x, c.z, 12 + layer) * 1.2;
@@ -592,7 +685,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     await wait(Math.min(800, mine.length * 30));
     sparkles(p.clone().setY(TOP + 0.1), lin(0xc9ffb0).getHex(), 26, 2.2);
     // A few flowers and bushes spring up on the woken land.
-    const spots = mine.filter(([c], n) => n > 1 && n % 4 === 1 && !keepClear(c.x, c.z)).slice(0, 3);
+    const spots = arch ? [] : mine.filter(([c], n) => n > 1 && n % 4 === 1 && !keepClear(c.x, c.z)).slice(0, 3);
     for (const [[c], n] of spots.map((s, n) => [s, n] as const)) {
       const b = new T.Group();
       b.position.set(c.x, c.top + 0.05, c.z);
@@ -708,6 +801,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     return g;
   };
   const cellTop = (x: number, z: number) => {
+    if (arch) return ARCH_TOP;
     let best = 0.2, bd = 1e9;
     for (const c of cells) {
       const d = (c.x - x) ** 2 + (c.z - z) ** 2;
@@ -906,6 +1000,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
     if (want <= stage) return;
     const first = stage === 0;
     stage = want;
+    if (arch) wakeIsland(3);
     if (first) {
       clearFog(-1);
       cells.forEach((c, k) => {
@@ -1083,7 +1178,10 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       rim.material.color.copy(c);
       rim.material.emissive = c.clone();
       rim.material.emissiveIntensity = 0.5;
-      if (first) await wakeLand(i);
+      if (first) {
+        if (arch) wakeIsland(Math.floor(i / 6));
+        await wakeLand(i);
+      }
       if (lv !== level[i] || changed) {
         level[i] = lv;
         await build(i, Math.max(1, Math.min(4, lv)), c);
@@ -1106,6 +1204,7 @@ export function createAwakenWorld(T: any, scene: any, theme: Theme, o: Opts): Aw
       rim.material.color.copy(goldMat.color);
       rim.material.emissiveIntensity = 0;
       sleepLand(i);
+      if (arch) wakeIsland(Math.floor(i / 6));
       void checkZone(Math.floor(i / 6));
     },
     tick(now) {

@@ -94,6 +94,28 @@ function ringSquares(): At[] {
   return out;
 }
 
+/**
+ * 巨龍天空城's road (Sky 2026-10-23, 群島浮橋): the same oval, a little bigger, but the 18 lots sit in three groups of
+ * six, one group on each outer island, with gaps between them that the floating bridges cross (start → 火山島 → 神殿島 →
+ * 雷雲島 → start).
+ */
+/** 群島浮橋 preview (Sky 2026-10-23: show him before it goes live): only with ?arch in the address for now. */
+export const ARCH_PREVIEW = typeof window !== "undefined" && /[?&]arch\b/.test(window.location.search);
+function archSquares(): At[] {
+  const halfW = 5.0, halfD = 5.8, cz = 0.2;
+  const zones = [
+    [40, 112],
+    [146, 214],
+    [248, 320],
+  ];
+  const angles = [0, ...zones.flatMap(([a, b]) => Array.from({ length: 6 }, (_, j) => a + ((b - a) * j) / 5))];
+  return angles.map((deg) => {
+    const a = (deg * Math.PI) / 180;
+    const x = -halfW * Math.sin(a), z = halfD * Math.cos(a);
+    return { x: Math.round(x * 75 + 476), y: Math.round((z + cz) * 75 * Math.sin((50 * Math.PI) / 180) + 680 - 120) };
+  });
+}
+
 export const islandOf = (id?: string): IslandArt => ISLANDS.find((i) => i.id === id) ?? ISLANDS[0];
 
 export const ISLANDS: IslandArt[] = [
@@ -138,7 +160,7 @@ export const ISLANDS: IslandArt[] = [
       { x: 1264, y: 427, r: 60, colour: "#bfdcff" },
     ],
     smoke: [{ x: 189, y: 507 }],
-    squares: ringSquares(),
+    squares: ARCH_PREVIEW ? archSquares() : ringSquares(),
     nest: { x: 476, y: 836, w: 110 },
     falls: [],
     spots: [],
